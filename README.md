@@ -5,10 +5,10 @@
 **Live per-key lighting effects for RDR-protocol keyboards, straight from your browser over WebHID.**
 
 ![single file](https://img.shields.io/badge/single--file-HTML-2ea44f)
-
 ![dependencies](https://img.shields.io/badge/dependencies-none-blue)
-
 ![api](https://img.shields.io/badge/WebHID-Chrome%20%2F%20Edge-4a90e2)
+
+**🔗 在线体验：<https://hogancv.github.io/pmo-keyboard-light-playground/>**（需 Chrome / Edge 桌面版）
 
 ---
 
