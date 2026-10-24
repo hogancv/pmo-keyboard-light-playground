@@ -1,0 +1,12 @@
+# 逆向调研产物与本地素材，不随站点发布
+PMOHub_*.html
+webhid-light-lab.html
+pmohub_research/
+
+# 本地脚本与渲染输出
+*.py
+*.png
+dump_effects.js
+
+# 工作区数据
+.workbuddy/
