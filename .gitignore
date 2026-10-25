@@ -14,3 +14,7 @@ dump_effects.js
 # 本地读取/对比产物
 slot1_*.json
 _*.html
+_*.json
+对比_*.jpg
+核对报告_*.png
+keys_for_cmp.json
