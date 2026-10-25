@@ -34,6 +34,19 @@ const dev = {
     const cmd = b[1], off = b[2] | (b[3] << 8), len = b[4];
     const data = b.slice(8, 8 + len);
     fw.log.push('tx 0x' + cmd.toString(16) + ' off=' + off + ' len=' + len);
+    // Hold a real sendReport promise open to reproduce clicking Save mid-frame.
+    if (cmd === 0x2e && off === 0 && fw.liveBarrier){
+      const barrier = fw.liveBarrier;
+      fw.liveBarrier = null;
+      barrier.started();
+      await barrier.released;
+    }
+    if (cmd === 0x23 && off === 0 && fw.writeBarrier){
+      const barrier = fw.writeBarrier;
+      fw.writeBarrier = null;
+      barrier.started();
+      await barrier.released;
+    }
     if (cmd === 0x2e){                       // 攒最近的推帧内容，供"保持静态帧"断言比对
       if (!fw.acc) fw.acc = new Uint8Array(512);
       for (let i = 0; i < len; i++) fw.acc[off + i] = data[i];
@@ -42,22 +55,29 @@ const dev = {
     out[0] = 0xAA; out[1] = cmd; out[2] = b[2]; out[3] = b[3]; out[4] = len;
     const fill = (src) => { for (let i = 0; i < len; i++) out[8 + i] = src[off + i] || 0; };
     if (cmd === 0x10 || cmd === 0x11){
-      // ok
+      if (cmd === 0x11 && fw.pending){
+        if (!fw.ignoreMode) fw.fi.set(fw.pending);
+        fw.pending = null;
+      }
     } else if (cmd === 0x12){
       fill(info);
     } else if (cmd === 0x14){
       fill(fw.fi);
     } else if (cmd === 0x15){
-      // SET_FUNCINFO：真固件要等 STOP_COMM 才提交，这里直接落库
-      for (let i = 0; i < len; i++) fw.fi[off + i] = data[i];
+      // Match the documented firmware commit boundary instead of committing early.
+      if (!fw.pending) fw.pending = fw.fi.slice();
+      for (let i = 0; i < len; i++) fw.pending[off + i] = data[i];
     } else if (cmd === 0x23 || cmd === 0x25 || cmd === 0x27 || cmd === 0x29 || cmd === 0x2B){
-      for (let i = 0; i < len; i++) fw.slot[off + i] = data[i];
+      if (fw.failCmd !== cmd){
+        for (let i = 0; i < len; i++) fw.slot[off + i] = data[i];
+        if (fw.corruptSlot && off === 0) fw.slot[0] ^= 1;
+      }
     } else if (cmd === 0x22 || cmd === 0x24 || cmd === 0x26 || cmd === 0x28 || cmd === 0x2A){
       fill(fw.slot);
     } else if (cmd === 0x32 || cmd === 0x34){
       for (let i = 0; i < len; i++) out[8 + i] = 0;
     }
-    out[7] = 0x55;
+    out[7] = fw.failCmd === cmd ? 0x0f : 0x55;
     setImmediate(() => this.reply(out));
     return undefined;
   }
@@ -67,6 +87,7 @@ const dev = {
 const mkEl = (tag, id) => ({
   tagName: tag.toUpperCase(), id, textContent: '', innerHTML: '', value: '', title: '',
   disabled: false, className: '', children: [], style: {}, dataset: {}, checked: true,
+  get firstChild(){ return this.children[0]; },
   width: 940, height: 340,
   classList: { _s: new Set(), add(c){ this._s.add(c); }, remove(c){ this._s.delete(c); },
     toggle(c, v){ if (v === undefined) this._s.has(c) ? this._s.delete(c) : this._s.add(c); else v ? this._s.add(c) : this._s.delete(c); },
@@ -121,11 +142,19 @@ const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 const runner = new AsyncFunction(code + `
 ;return { S, ED, buildGrid, setLayout, attachRx, edOpen, edClose, edDown, edMove, edUp, edRectKeys,
   edFill, edUndo, edRedo, edGrad, edRowFix, edPreset, edBuildPresets, edWriteSlot, edExport, edImportFile,
-  edLoadSlotQuiet, edSwitchSlot, edAutoSave,
+  edLoadSlotQuiet, edSwitchSlot, edAutoSave, stopAll,
   edSetColor, edGet, edPut, edKeys, edSelKeys, edSnap, edPushLive, edTakeOver, edRelease, pushFrame,
   edStartStream, edStopStream, switchTab, edGate, CMD, CMD_SLOT, CMD_SLOT_RD };`);
 
 let pass = 0, fail = 0;
+setTimeout(() => { console.error('❌ 测试超时（可能存在未完成的 HID 操作）'); process.exit(1); }, 30000);
+async function waitFor(predicate, label){
+  const deadline = Date.now() + 5000;
+  while (!predicate()){
+    if (Date.now() > deadline) throw new Error('Timed out: ' + label);
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}
 function ok(name, cond, extra){
   if (cond){ pass++; console.log('  ✅ ' + name + (extra ? '  ' + extra : '')); }
   else { fail++; console.log('  ❌ ' + name + (extra ? '  ' + extra : '')); }
@@ -257,7 +286,7 @@ function ok(name, cond, extra){
   ED.sel = new Set([aKey.li]);
   edFill([9, 99, 199]);
   ok('改动把画布标脏', ED.dirty === true, String(ED.dirty));
-  await new Promise(r => setTimeout(r, 1700));
+  await waitFor(() => !ED.dirty && !ED.ioPending && !ED.pushing, 'auto-save committed');
   ok('自动保存把 LED 47 落成 9,99,199',
      fw.slot[o] === 9 && fw.slot[o + 1] === 99 && fw.slot[o + 2] === 199,
      '[' + fw.slot[o] + ',' + fw.slot[o + 1] + ',' + fw.slot[o + 2] + ']');
@@ -421,6 +450,7 @@ function ok(name, cond, extra){
   api.switchTab('ed');
   await new Promise(r => setTimeout(r, 60));
   ok('通道开好后进入分页 = 接管推流', S.fxPaused === true, String(S.fxPaused));
+  await waitFor(() => ED.ioPending === 0 && !ED.pushing, 'editor takeover');
   ED.buf = new Uint8Array(384); ED.buf[0] = 40; ED.buf[1] = 90; ED.buf[2] = 140;
   fw.log.length = 0;
   await new Promise(r => setTimeout(r, 500));   // 接管含 enterSlotMode（80+60ms 等待），窗口放宽
@@ -432,8 +462,143 @@ function ok(name, cond, extra){
   fw.log.length = 0;
   api.switchTab('fx');
   ok('切回动画分页 = 交还通道', S.fxPaused === false && !ED.open, String(S.fxPaused) + ' / ' + ED.open);
+  await waitFor(() => !ED.ioPending && !ED.pushing, 'leaving editor');
   await api.pushFrame();
   ok('交还后主循环照常推一帧（3 包）', pk() === 3, pk() + ' 包');
+
+  console.log('\n10) 实时推流期间保存（在途帧 / 失败 / 断流回落）');
+  S.fxPaused = true; S.armed = true; ED.open = true; ED.live = true;
+  el('edLive').checked = true;
+  if (ED.saveTimer){ clearTimeout(ED.saveTimer); ED.saveTimer = 0; }
+  if (ED.pushTimer){ clearTimeout(ED.pushTimer); ED.pushTimer = 0; }
+  ED.buf.fill(0); ED.buf.set([17, 34, 51], 47 * 3); ED.dirty = true;
+  fw.fi[2] = 7; fw.slot.fill(0); fw.log.length = 0;
+  let releaseFrame, frameStarted;
+  const started = new Promise(resolve => { frameStarted = resolve; });
+  fw.liveBarrier = {
+    started: frameStarted,
+    released: new Promise(resolve => { releaseFrame = resolve; })
+  };
+  const inFlight = api.edPushLive(true);
+  await started;
+  api.edStartStream();
+  const saving = edWriteSlot();
+  await new Promise(r => setTimeout(r, 25));
+  ok('立即保存先等在途整帧发完，不抢占 sendReport',
+     !fw.log.some(l => l.startsWith('tx 0x10')));
+  releaseFrame();
+  await Promise.all([inFlight, saving]);
+  ok('立即保存自动取消实时预览，UI 与推流状态一致',
+     !ED.live && !el('edLive').checked && !ED.stream);
+  const afterSave = fw.log.length;
+  await new Promise(r => setTimeout(r, 120));
+  ok('保存后不自动恢复推流覆盖板载配色',
+     !fw.log.slice(afterSave).some(l => l.startsWith('tx 0x2e')));
+  api.edStopStream(); // 清理旧实现，确保失败测试也能继续运行
+  const firstStart = fw.log.findIndex(l => l.startsWith('tx 0x10'));
+  ok('写槽和模式提交期间不插入实时帧',
+     !fw.log.slice(firstStart).some(l => l.startsWith('tx 0x2e')),
+     fw.log.slice(firstStart).filter(l => l.startsWith('tx 0x2e')).length + ' 包插队');
+  ok('实时保存完整落槽，断流后有静态配色可用',
+     JSON.stringify(Array.from(fw.slot.slice(141, 144))) === '[17,34,51]' &&
+     fw.fi[2] === 253 && fw.fi[10] === 0 && !ED.dirty);
+  const firstWrite = fw.log.findIndex(l => l.startsWith('tx 0x23'));
+  const closeSync = fw.log.findIndex(l => l.startsWith('tx 0x2f'));
+  ok('按官方流程先 CLOSE_SYNC、STOP，再开始写板载槽',
+     closeSync >= 0 && closeSync < firstWrite &&
+     fw.log.slice(closeSync + 1, firstWrite).some(l => l.startsWith('tx 0x11')));
+
+  fw.log.length = 0;
+  el('edLive').checked = true;
+  el('edLive').onchange.call(el('edLive'));
+  await new Promise(r => setTimeout(r, 160));
+  ok('保存后重新勾选实时预览会恢复持续推帧，而非只推一帧', pk() >= 9);
+  el('edLive').checked = false;
+  el('edLive').onchange.call(el('edLive'));
+  await waitFor(() => !ED.pushing, 'preview stopped');
+  fw.log.length = 0;
+  await new Promise(r => setTimeout(r, 120));
+  ok('取消实时预览后定时器和尾帧均停止', !ED.stream && !ED.pushTimer && pk() === 0);
+
+  fw.failCmd = 0x23; ED.dirty = true;
+  await edWriteSlot();
+  ok('固件拒绝写槽时保留脏标记，允许重试', ED.dirty === true);
+  ok('写槽失败后不显示保存成功', !el('devStatus').textContent.includes('掉电保留'));
+  fw.failCmd = null;
+
+  fw.fi[2] = 7; fw.ignoreMode = true; ED.dirty = true;
+  await edWriteSlot();
+  ok('模式提交失败时不宣称关网页能保持灯效',
+     !el('devStatus').textContent.includes('关掉网页键盘也保持'));
+  ok('模式提交失败仍保留待保存状态', ED.dirty === true);
+  fw.ignoreMode = false;
+
+  // Auto-save must reselect/verify the persisted mode, not only write RGB bytes.
+  ED.dirty = true;
+  await api.edAutoSave();
+  ok('自动保存同时提交自定义模式，断流不会回落到模式 7',
+     fw.fi[2] === 253 && fw.fi[10] === 0 && !ED.dirty);
+
+  fw.corruptSlot = true; ED.dirty = true;
+  await edWriteSlot();
+  ok('写槽 ACK 成功但回读配色不一致时仍报告失败',
+     ED.dirty && el('edMsg').textContent.includes('回读不一致'));
+  fw.corruptSlot = false;
+  fw.failCmd = 0x11;
+  await edWriteSlot();
+  ok('STOP 提交被拒绝时不能宣称持久化成功',
+     ED.dirty && el('devStatus').textContent.includes('保存失败'));
+  fw.failCmd = null;
+
+  fw.log.length = 0; ED.dirty = true;
+  let releaseWrite, writeStarted;
+  const writing = new Promise(resolve => { writeStarted = resolve; });
+  fw.writeBarrier = {
+    started: writeStarted,
+    released: new Promise(resolve => { releaseWrite = resolve; })
+  };
+  const saveBeforeSwitch = edWriteSlot();
+  await writing;
+  const packetsBeforeSwitch = fw.log.length;
+  const switchAfterSave = api.edSwitchSlot(1);
+  await new Promise(r => setTimeout(r, 25));
+  ok('切槽等待正在进行的保存，不并发发送 HID 命令', fw.log.length === packetsBeforeSwitch);
+  releaseWrite();
+  await Promise.all([saveBeforeSwitch, switchAfterSave]);
+  const firstSlotWrite = fw.log.find(l => /^tx 0x(23|25) /.test(l));
+  ok('立即保存后马上切槽，先写旧槽，不被切槽抢占',
+     firstSlotWrite && firstSlotWrite.startsWith('tx 0x23'), firstSlotWrite);
+  await api.edSwitchSlot(0);
+
+  let releaseSnapshot, snapshotStarted;
+  const snapshotWriting = new Promise(resolve => { snapshotStarted = resolve; });
+  fw.writeBarrier = {
+    started: snapshotStarted,
+    released: new Promise(resolve => { releaseSnapshot = resolve; })
+  };
+  ED.buf.set([11, 22, 33], 141); ED.dirty = true;
+  const snapshotSave = edWriteSlot();
+  await snapshotWriting;
+  ED.sel = new Set([47]);
+  edFill([44, 55, 66]);
+  releaseSnapshot();
+  await snapshotSave;
+  ok('保存期间继续编辑不混写快照，也不丢失待保存状态',
+     JSON.stringify(Array.from(fw.slot.slice(141, 144))) === '[11,22,33]' && ED.dirty);
+  await api.edAutoSave();
+  ok('下一次保存落盘保存期间的新改动',
+     JSON.stringify(Array.from(fw.slot.slice(141, 144))) === '[44,55,66]' && !ED.dirty);
+
+  api.switchTab('ed');
+  await waitFor(() => !ED.ioPending && !ED.pushing, 'takeover before stopping');
+  ED.buf.set([66, 77, 88], 141); ED.dirty = true;
+  await api.stopAll();
+  ok('编辑后立即停止也先存最新配色，再交还固件',
+     JSON.stringify(Array.from(fw.slot.slice(141, 144))) === '[66,77,88]' &&
+     fw.fi[2] === 253 && !S.armed && !ED.dirty);
+  api.edStopStream();
+  ED.open = false;
+  if (ED.saveTimer) clearTimeout(ED.saveTimer);
 
   console.log('\n' + (fail ? '❌ ' : '✅ ') + '通过 ' + pass + ' 项，失败 ' + fail + ' 项');
   process.exit(fail ? 1 : 0);

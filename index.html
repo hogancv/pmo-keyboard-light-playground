@@ -909,7 +909,8 @@ async function restoreMode(){
 async function enterSlotMode(slot){
   if (!S.dev) return false;
   const want = clamp(slot | 0, 0, 4);
-  await request(CMD.START, 0, 0, null, 900);
+  const started = await request(CMD.START, 0, 0, null, 900);
+  if (!started || started.status !== ST_OK) return false;
   const f = await readFuncInfo();
   if (!f || f.length < 40){
     try { await request(CMD.STOP, 0, 0, null, 500); } catch (e){}
@@ -921,14 +922,16 @@ async function enterSlotMode(slot){
   f[2] = 253;                                // lightMode：按自定义灯表渲染
   f[10] = want;                              // lightCustomIndex：目标槽
   f[3] = f[3] || ((S.devInfo && S.devInfo.maxBright) || 160);
-  await writeFuncInfo(f);
+  const written = await writeFuncInfo(f);
   // 固件要 STOP_COMM 才提交参数表
-  try { await request(CMD.STOP, 0, 0, null, 700); } catch (e){}
+  const committed = await request(CMD.STOP, 0, 0, null, 700);
   await sleep(80);
-  try { await request(CMD.START, 0, 0, null, 900); } catch (e){}
+  const restarted = await request(CMD.START, 0, 0, null, 900);
   await sleep(60);
   const chk = await readFuncInfo();
-  const ok = !!(chk && chk[2] === 253 && (chk[10] | 0) === want);
+  const ok = !!(written.length && written.every(function(x){ return x === ST_OK; })
+    && committed && committed.status === ST_OK && restarted && restarted.status === ST_OK
+    && chk && chk[1] === 0 && chk[2] === 253 && chk[3] > 0 && (chk[10] | 0) === want);
   if (ok){
     // 参数已经指向自定义槽，实时通道等于就绪：编辑器里勾回「实时推给键盘」就能继续用
     S.armed = true;
@@ -1038,31 +1041,45 @@ async function stopAll(){
   if (!S.dev) return;
   S.armed = false;
   const inEd = TAB === 'ed' && ED && ED.open;
+  edStopStream();
+  if (ED.saveTimer){ clearTimeout(ED.saveTimer); ED.saveTimer = 0; }
   try {
-    if (inEd){
-      // 在自定义分页里停止 ≠ 回原厂：键盘停在当前自定义槽的配色上（已实时存槽，掉电保留）
-      edStopStream();
-      try { await enterSlotMode(ED.slot); } catch (e){}
-      S.armed = false;                 // enterSlotMode 成功会置 armed，这里明确熄掉
-      setStatus(L('已停止 · 键盘停在自定义' + (ED.slot + 1) + '的配色（已存槽）',
-        'Stopped — the keyboard holds the Custom ' + (ED.slot + 1) + ' colours (saved to the slot)'),
-        '#7ec89a', '');
-    } else {
-      // 把 mode 还原成开启前那个，否则键盘会停在"自定义"上，帧一停就全黑
-      if (S.origMode !== null) await restoreMode();
-      setStatus('已停止，灯效交还固件', '#7ec89a', 'Stopped — lighting handed back to the firmware');
-    }
-    try { await request(CMD.CLOSE_SYNC, 0, 0, null, 400); } catch (e){}
-    await sleep(20);
-    try { await request(CMD.STOP, 0, 0, null, 400); } catch (e){}
-    $('sPush').textContent = '—';
-    if (inEd) edGate(true);            // 编辑器也随之锁上
-  } catch (e){ setStatus('停止失败：' + e.message, '#d98d85', 'Stop failed: ' + e.message); }
+    await edWithChannel(async function(){
+      if (inEd){
+        // 防抖未到/保存还在排队时停止，也必须先把最新画布落盘。
+        if (ED.dirty){
+          ED.dirty = false;
+          try { await edSaveCore(ED.buf.slice()); }
+          catch (e){ ED.dirty = true; throw e; }
+        } else if (!await enterSlotMode(ED.slot)){
+          throw new Error(L('自定义模式未确认', 'Custom mode not confirmed'));
+        }
+        S.armed = false;                 // enterSlotMode 成功会置 armed，这里明确熄掉
+        setStatus(L('已停止 · 键盘停在自定义' + (ED.slot + 1) + '的配色（已存槽）',
+          'Stopped — the keyboard holds the Custom ' + (ED.slot + 1) + ' colours (saved to the slot)'),
+          '#7ec89a', '');
+      } else {
+        // 把 mode 还原成开启前那个，否则键盘会停在"自定义"上，帧一停就全黑
+        if (S.origMode !== null) await restoreMode();
+        setStatus('已停止，灯效交还固件', '#7ec89a', 'Stopped — lighting handed back to the firmware');
+      }
+      try { await request(CMD.CLOSE_SYNC, 0, 0, null, 400); } catch (e){}
+      await sleep(20);
+      try { await request(CMD.STOP, 0, 0, null, 400); } catch (e){}
+      S.armed = false;
+      $('sPush').textContent = '—';
+      if (inEd) edGate(true);            // 编辑器也随之锁上
+    });
+  } catch (e){
+    S.armed = false;
+    setStatus('停止失败：' + e.message, '#d98d85', 'Stop failed: ' + e.message);
+  }
 }
 async function pushFrame(src){
   if (!S.dev || !S.armed || S.pushBusy) return;
   if (S.fxPaused) return;      // 编辑器开着：主循环这一路让位，键盘由编辑器独占
   if (S.txBusy) return;        // 通道被别的流占着，这一帧直接跳过，别插进去搅乱分块
+  if (ED && ED.ioPending) return; // 已有板载操作排队，先让在途帧收尾，不再开新帧
   S.pushBusy = true; S.txBusy = true;
   try {
     const G = S.G, out = src || G.out;
@@ -2214,6 +2231,7 @@ var ED = {
   undo: [], redo: [], live: true,
   stream: 0,                            // stream = 编辑器自己的持续推帧定时器
   saveTimer: 0,                         // 自动保存的防抖定时器（改完 1.2s 没动静就落槽）
+  ioPending: 0, ioTail: null,            // 板载操作队列：预约通道后先等在途帧结束
   slotBusy: false,                      // 正在切槽（flush + 读槽 + 切模式），期间别再动
   tok: 0,                               // 生命周期令牌：开关编辑器各 +1，让旧的接管流程自行作废
   lastPush: 0, pushing: false, recent: [], dirty: false
@@ -2707,6 +2725,7 @@ function edRowFix(){
 async function edPushLive(force){
   if (!ED.live && !force) return;
   if (!S.dev || !S.armed || ED.pushing) return;
+  if (ED.ioPending) return;              // 写槽/切槽已预约通道，不再启动下一帧
   if (S.txBusy){
     // 持续推流（force）时直接跳过这一拍，下一拍自然会补上，别排队堆积；
     // 编辑动作触发的单次推送才排尾帧，防止最后一次改动被吞。
@@ -2742,20 +2761,67 @@ async function edPushLive(force){
   }
 }
 
+// 不能直接覆盖 txBusy：在途帧的 finally 会把它清掉，导致推流插入写槽。
+// 先同步预约（阻止新帧），再等旧帧收尾，最后串行执行整个板载事务。
+async function edWithChannel(action){
+  const dev = S.dev;
+  const previous = ED.ioTail || Promise.resolve();
+  let release;
+  ED.ioTail = new Promise(function(resolve){ release = resolve; });
+  ED.ioPending++;
+  let acquired = false;
+  try {
+    await previous;
+    const deadline = performance.now() + 3000;
+    while (S.txBusy || S.pushBusy || ED.pushing){
+      if (performance.now() >= deadline) throw new Error(L('灯光通道忙，请重试', 'Lighting channel busy — retry'));
+      await sleep(10);
+    }
+    if (!dev || S.dev !== dev || !dev.opened) throw new Error(L('键盘已断开，请重新连接', 'Keyboard disconnected — reconnect'));
+    ED.pushing = true; S.txBusy = true; acquired = true;
+    return await action();
+  } finally {
+    if (acquired){ ED.pushing = false; S.txBusy = false; }
+    ED.ioPending--;
+    release();
+  }
+}
+
 // ---------- 读 / 写板载槽 ----------
 // ---------- 写板载槽（核心，不含锁；调用方自己管 txBusy） ----------
-async function edSaveCore(buf){
+async function edSaveCore(buf, slot){
   const src = buf || ED.buf;
-  await request(CMD.START, 0, 0, null, 900);
-  const res = [];
-  for (let off = 0; off < 384; off += S.chunk){
-    const len = Math.min(S.chunk, 384 - off);
-    const p = await request(CMD_SLOT[ED.slot], off, len, src.subarray(off, off + len), 1000);
-    res.push(p ? p.status : -1);
-    await sleep(12);
+  const target = slot === undefined ? ED.slot : slot;
+  const requireOk = function(p){
+    if (!p || p.status !== ST_OK) throw new Error(L('板载写入未确认，请查看诊断日志', 'Onboard write not acknowledged — see diagnostics'));
+  };
+  try {
+    // PMOHub RDRComm 在板载写入前先 tearDownRealtimeAuroraSession：
+    // CLOSE_LIGHT_SYNC (0x2F) → STOP_COMM (0x11)，不能只停 JS 定时器。
+    requireOk(await request(CMD.CLOSE_SYNC, 0, S.chunk, null, 700));
+    requireOk(await request(CMD.STOP, 0, S.chunk, null, 700));
+    requireOk(await request(CMD.START, 0, 0, null, 900));
+    const res = [];
+    for (let off = 0; off < 384; off += S.chunk){
+      const len = Math.min(S.chunk, 384 - off);
+      const p = await request(CMD_SLOT[target], off, len, src.subarray(off, off + len), 1000);
+      requireOk(p);
+      res.push(p.status);
+      await sleep(12);
+    }
+    requireOk(await request(CMD.STOP, 0, 0, null, 700));
+    requireOk(await request(CMD.START, 0, 0, null, 900));
+    const saved = await readChunked(CMD_SLOT_RD[target], 384, 900);
+    if (!saved || saved.length !== 384 || saved.some(function(v, i){ return v !== src[i]; })){
+      throw new Error(L('配色回读不一致，请重新保存', 'Colour read-back mismatch — save again'));
+    }
+    if (!await enterSlotMode(target)) throw new Error(L('自定义模式未确认，请重新保存', 'Custom mode not confirmed — save again'));
+    requireOk(await request(CMD.STOP, 0, 0, null, 700));
+    return res;
+  } catch (e){
+    try { await request(CMD.STOP, 0, 0, null, 700); } catch (ignored){}
+    throw e;
   }
-  await request(CMD.STOP, 0, 0, null, 700);
-  return res;
 }
 
 // 自动保存：改动停 1.2s 后触发，把画布写进当前自定义槽。
@@ -2771,26 +2837,19 @@ function edScheduleSave(){
 
 async function edAutoSave(){
   if (!ED.dirty || !S.dev || !S.armed || !ED.open || ED.slotBusy) return;
-  if (ED.pushing || S.txBusy){ edScheduleSave(); return; }   // 通道正忙着：稍后再试
-  ED.dirty = false;               // 先标净；保存期间若有新改动，edAfter 会重新标脏、下轮再存
-  const snap = ED.buf.slice();    // 存快照，避免分块写一半时画布被改出混合帧
-  ED.pushing = true; S.txBusy = true;
   try {
-    const res = await edSaveCore(snap);
-    if (res.length && res.every(function(x){ return x === ST_OK; })){
+    await edWithChannel(async function(){
+      if (!ED.dirty || !S.armed || !ED.open) return;
+      ED.dirty = false;           // 保存期间的新改动会重新标脏，不能在保存结束时清掉
+      const res = await edSaveCore(ED.buf.slice());
       diag('ok', '自动保存：已写入自定义' + (ED.slot + 1) + '（' + res.length + ' 段）',
         'auto-save: written to Custom ' + (ED.slot + 1) + ' (' + res.length + ' chunks)');
       edMsg(L('已自动保存到自定义' + (ED.slot + 1) + ' · 掉电保留', 'Auto-saved to Custom ' + (ED.slot + 1) + ' · survives power-off'));
-    } else {
-      ED.dirty = true;            // 没写成功：还原脏标记，下一轮防抖再试
-      diag('warn', '自动保存未全部确认：' + res.map(function(x){ return x < 0 ? '无应答' : '0x' + x.toString(16); }).join(' / '),
-        'auto-save not fully acknowledged');
-    }
+    });
   } catch (e){
     ED.dirty = true;
     diag('warn', '自动保存失败：' + e.message, 'auto-save failed: ' + e.message);
-  } finally {
-    ED.pushing = false; S.txBusy = false;
+    edMsg(L('自动保存失败：' + e.message, 'Auto-save failed: ' + e.message));
   }
 }
 
@@ -2800,22 +2859,16 @@ async function edSwitchSlot(i){
   if (i === ED.slot || ED.slotBusy) return;
   ED.slotBusy = true;
   if (ED.saveTimer){ clearTimeout(ED.saveTimer); ED.saveTimer = 0; }
-  const oldSlot = ED.slot;
   try {
-    const flush = ED.dirty && S.dev && S.armed;
-    ED.dirty = false;
-    const snap = flush ? ED.buf.slice() : null;
-    ED.pushing = true; S.txBusy = true;
-    try {
+    const change = async function(){
+      const oldSlot = ED.slot;
+      const flush = ED.dirty && S.dev && S.armed;
+      ED.dirty = false;
+      const snap = flush ? ED.buf.slice() : null;
       if (snap){
-        const res = await edSaveCore(snap);
-        if (res.length && res.every(function(x){ return x === ST_OK; })){
-          diag('ok', '切槽前已把修改补存到自定义' + (oldSlot + 1),
-            'edits flushed to Custom ' + (oldSlot + 1) + ' before switching');
-        } else {
-          diag('warn', '切槽前补存未全部确认，改动可能没落进自定义' + (oldSlot + 1),
-            'flush before switching not fully acknowledged; edits may be lost');
-        }
+        await edSaveCore(snap, oldSlot);
+        diag('ok', '切槽前已把修改补存到自定义' + (oldSlot + 1),
+          'edits flushed to Custom ' + (oldSlot + 1) + ' before switching');
       }
       ED.slot = i;
       ED.sel.clear(); ED.hover = -1;
@@ -2825,16 +2878,19 @@ async function edSwitchSlot(i){
       let loaded = false;
       if (S.dev) loaded = await edLoadSlotQuiet();
       if (S.dev && S.armed){
-        await enterSlotMode(i);      // 键盘立即显示该槽；此后断流也停在这套配色
+        if (!await enterSlotMode(i)) throw new Error(L('自定义模式未确认', 'Custom mode not confirmed'));
         edMsg(L('已切到自定义' + (i + 1) + (loaded ? ' · 已载入该槽配色' : ' · 该槽是空的，随便画'),
           'Switched to Custom ' + (i + 1) + (loaded ? ' · slot colours loaded' : ' · slot is empty, paint away')));
       } else {
         edMsg(L('当前槽：自定义' + (i + 1), 'Slot: Custom ' + (i + 1)));
       }
       try { edDraw(); } catch (e){}
-    } finally {
-      ED.pushing = false; S.txBusy = false;
-    }
+    };
+    if (S.dev) await edWithChannel(change);
+    else await change();
+  } catch (e){
+    ED.dirty = true;
+    edMsg(L('切槽失败：' + e.message, 'Slot switch failed: ' + e.message));
   } finally {
     ED.slotBusy = false;
   }
@@ -2843,35 +2899,31 @@ async function edSwitchSlot(i){
 async function edWriteSlot(){
   if (!S.dev){ edMsg(L('先连接键盘', 'Connect the keyboard first')); return; }
   const btn = $('edWrite'); if (btn) btn.disabled = true;
-  const name = L('自定义' + (ED.slot + 1), 'Custom ' + (ED.slot + 1));
-  ED.dirty = false;
-  const snap = ED.buf.slice();
-  ED.pushing = true; S.txBusy = true;       // 保存期间独占通道，别再插 0x2E 帧
-  edMsg(L('正在保存到自定义' + (ED.slot + 1) + '…', 'Saving to Custom ' + (ED.slot + 1) + '…'));
+  // 与手动取消「持续推给键盘」一致。保存后保持关闭，直接看板载配色；
+  // 不能在 finally 自动恢复，否则 0x2E 又会盖住刚写好的自定义槽。
+  edSetLive(false);
+  const live = $('edLive'); if (live) live.disabled = true;
+  if (ED.saveTimer){ clearTimeout(ED.saveTimer); ED.saveTimer = 0; }
   try {
-    const res = await edSaveCore(snap);
-    const ok = !!(res.length && res.every(function(x){ return x === ST_OK; }));
-    let switched = true;
-    if (ok) switched = await enterSlotMode(ED.slot);   // 确保固件指向该槽（平时自动保存已顺带做好）
-    edMsg(ok
-      ? L('已保存到' + name + (switched ? '' : '（切槽未确认，看诊断日志）'),
-          'Saved to ' + name + (switched ? '' : ' (slot switch not confirmed — see diagnostics)'))
-      : L('保存未全部确认，看诊断日志', 'Save not fully acknowledged — see diagnostics'));
-    setStatus(ok
-      ? L('已保存到「' + name + '」· 掉电保留，关掉网页键盘也保持这套配色',
-          'Saved to "' + name + '" · survives power-off; closing the page keeps these colours')
-      : L('保存「' + name + '」未确认，看诊断日志', 'Saving "' + name + '" not confirmed — see diagnostics'),
-      ok ? '#7ec89a' : '#d9b45c', '');
-    diag(ok ? 'ok' : 'warn', '写槽 ' + ED.slot + '（0x' + CMD_SLOT[ED.slot].toString(16) + '）：'
-      + res.map(function(x){ return x < 0 ? '无应答' : '0x' + x.toString(16); }).join(' / '),
-      'slot write ' + ED.slot + ' (0x' + CMD_SLOT[ED.slot].toString(16) + '): '
-      + res.map(function(x){ return x < 0 ? 'no reply' : '0x' + x.toString(16); }).join(' / '));
+    await edWithChannel(async function(){
+      const name = L('自定义' + (ED.slot + 1), 'Custom ' + (ED.slot + 1));
+      ED.dirty = false;
+      edMsg(L('正在保存到' + name + '…', 'Saving to ' + name + '…'));
+      const res = await edSaveCore(ED.buf.slice());
+      edMsg(L('已保存到' + name + ' · 已回读确认 · 实时预览已关闭',
+        'Saved to ' + name + ' · read-back verified · live preview off'));
+      setStatus(L('已保存到「' + name + '」· 掉电保留，关掉网页键盘也保持这套配色',
+        'Saved to "' + name + '" · survives power-off; closing the page keeps these colours'), '#7ec89a', '');
+      diag('ok', '写槽 ' + ED.slot + '：' + res.length + ' 段，配色与自定义模式已回读确认',
+        'slot write ' + ED.slot + ': ' + res.length + ' chunks; colours and custom mode verified');
+    });
   } catch (e){
     ED.dirty = true;
     edMsg(L('保存失败：' + e.message, 'Save failed: ' + e.message));
+    setStatus(L('保存失败：' + e.message, 'Save failed: ' + e.message), '#d98d85', '');
   } finally {
-    ED.pushing = false; S.txBusy = false;
     if (btn) btn.disabled = false;
+    if (live) live.disabled = false;
   }
 }
 
@@ -3021,26 +3073,26 @@ async function edTakeOver(){
   edGate(false);
   const tok = ED.tok;                        // 生命周期令牌：中途关/重开编辑器，本次接管作废
   S.fxPaused = true;                 // 主循环的下一帧起就不再推
-  for (let i = 0; i < 60; i++){      // 等当前这一帧（最多 3 个分块）发完，上限约 600ms
-    if (!S.pushBusy && !S.txBusy && !ED.pushing) break;
-    await sleep(10);
-  }
-  const gone = function(){ return !ED.open || TAB !== 'ed' || ED.tok !== tok; };
-  if (gone()) return;               // 等待期间用户已经切走
-  ED.pushing = true; S.txBusy = true;        // 接管过程独占通道
+  const gone = function(){ return !ED.open || TAB !== 'ed' || ED.tok !== tok || !S.armed; };
   try {
-    // 画布是空的（第一次进来）：先把板载槽读进来，键盘和画布才有东西显示，
-    // 否则持续推流会推一片黑，把键盘推灭
-    if (!ED.buf.some(function(v){ return v > 0; })) await edLoadSlotQuiet();
-    if (gone()) return;
-    // 把固件「当前灯效」指到这个槽（mode=253 + customIndex=槽号）。
-    // 这样此后帧流一旦断掉（切分页、关网页、拔线），键盘退回的也是这个自定义槽
-    // 的静态配色，而不是原厂动画。
-    await enterSlotMode(ED.slot);
-    if (gone()) return;
-  } finally {
-    ED.pushing = false; S.txBusy = false;
+    await edWithChannel(async function(){
+      if (gone()) return;             // 等待期间用户已经切走/停止
+      // 画布是空的（第一次进来）：先把板载槽读进来，键盘和画布才有东西显示，
+      // 否则持续推流会推一片黑，把键盘推灭
+      if (!ED.buf.some(function(v){ return v > 0; })) await edLoadSlotQuiet();
+      if (gone()) return;
+      // 把固件「当前灯效」指到这个槽（mode=253 + customIndex=槽号）。
+      // 这样此后帧流一旦断掉（切分页、关网页、拔线），键盘退回的也是这个自定义槽
+      // 的静态配色，而不是原厂动画。
+      if (!await enterSlotMode(ED.slot)) throw new Error(L('自定义模式未确认', 'Custom mode not confirmed'));
+      if (gone()) return;
+    });
+  } catch (e){
+    edMsg(L('接管失败：' + e.message, 'Takeover failed: ' + e.message));
+    diag('warn', '接管失败：' + e.message, 'takeover failed: ' + e.message);
+    return;
   }
+  if (gone()) return;
   S.pushAt = 0;
   edStartStream();
   diag('ok', '编辑器接管：固件已指向自定义' + (ED.slot + 1) + '，25fps 持续推帧（改动 1.2s 后自动存槽）',
@@ -3074,6 +3126,17 @@ function edStartStream(){
 }
 function edStopStream(){
   if (ED.stream){ clearInterval(ED.stream); ED.stream = 0; }
+}
+
+function edSetLive(enabled){
+  ED.live = !!enabled;
+  const input = $('edLive'); if (input) input.checked = ED.live;
+  edStopStream();
+  if (ED.pushTimer){ clearTimeout(ED.pushTimer); ED.pushTimer = 0; }
+  if (ED.live && ED.open && S.dev && S.armed){
+    edStartStream();
+    edPushLive(true);
+  }
 }
 
 function edRelease(){
@@ -3120,19 +3183,17 @@ function edClose(){
   if (S.G){ S.fx = EFFECTS[S.fxIdx].init(S.G, S); }
   // 还有没落盘的修改：切页前补存一次（异步，不挡切页；txBusy 会挡住主循环别插队）
   if (ED.saveTimer){ clearTimeout(ED.saveTimer); ED.saveTimer = 0; }
-  if (ED.dirty && S.dev && S.armed && !ED.slotBusy && !ED.pushing && !S.txBusy){
-    ED.dirty = false;
-    const snap = ED.buf.slice();
-    const slot = ED.slot;
-    ED.pushing = true; S.txBusy = true;
-    edSaveCore(snap).then(function(res){
-      if (res && res.length && res.every(function(x){ return x === ST_OK; })){
-        diag('ok', '切页前已补存到自定义' + (slot + 1), 'edits flushed to Custom ' + (slot + 1) + ' before leaving');
-      } else {
-        ED.dirty = true;
-      }
-    }).catch(function(){ ED.dirty = true; })
-      .finally(function(){ ED.pushing = false; S.txBusy = false; });
+  if (ED.dirty && S.dev && S.armed){
+    edWithChannel(async function(){
+      if (!ED.dirty) return;
+      ED.dirty = false;
+      await edSaveCore(ED.buf.slice());
+      diag('ok', '切页前已补存到自定义' + (ED.slot + 1),
+        'edits flushed to Custom ' + (ED.slot + 1) + ' before leaving');
+    }).catch(function(e){
+      ED.dirty = true;
+      diag('warn', '切页补存失败：' + e.message, 'flush before leaving failed: ' + e.message);
+    });
   }
   edRelease();
   setTimeout(function(){ try { edDraw(); } catch (e){} }, 0);
@@ -3173,7 +3234,7 @@ function edInit(){
     const c = edParse(this.value);
     if (c) edSetColor(c, ED.sel.size > 0); else this.value = edHex(ED.color[0], ED.color[1], ED.color[2]);
   };
-  if ($('edLive')) $('edLive').onchange = function(){ ED.live = this.checked; if (ED.live) edPushLive(true); };
+  if ($('edLive')) $('edLive').onchange = function(){ edSetLive(this.checked); };
 
   const on = function(id, fn){ const el = $(id); if (el) el.onclick = fn; };
   on('edFill', function(){ edFill(ED.color); });
