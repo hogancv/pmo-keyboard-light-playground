@@ -146,7 +146,7 @@ const runner = new AsyncFunction(code + `
   fw.frames.length = 0;
   const out = S.G.out;
   for (let i = 0; i < S.G.leds; i++){ out[i*3] = 0; out[i*3+1] = 255; out[i*3+2] = 0; }
-  // 单独给 → 刷蓝，验证最后一颗灯真的进了帧（偏移 +1 后 → 应为 81 号）
+  // 单独给 → 刷蓝，验证最后一颗灯真的进了帧（灯号 46 不存在，A 起顺延一位）
   const arrowLi = (S.G.byName.get('→') || {}).li;
   const escLi = (S.G.byName.get('Esc') || {}).li;
   if (arrowLi !== undefined){ out[arrowLi*3] = 0; out[arrowLi*3+1] = 0; out[arrowLi*3+2] = 255; }
@@ -157,8 +157,8 @@ const runner = new AsyncFunction(code + `
   for (const f of fw.frames) for (let i = 0; i < f.len; i++) flat[f.off + i] = f.data[i];
   const beadArrow = (flat[arrowLi*2] | (flat[arrowLi*2+1] << 8));
   console.log('   布局键数 ' + S.G.keys.length + '，G.leds = ' + S.G.leds
-    + '（WAVE75：81 键占 1..81，0 号无键 = 固件报的 82 颗）');
-  console.log('   Esc = ' + escLi + ' 号，→ = ' + arrowLi + ' 号（偏移 +1，实测应为 1 / 81）');
+    + '（WAVE75：81 键占 0..81，46 号是固件里的空号，没有实体灯）');
+  console.log('   Esc = ' + escLi + ' 号，→ = ' + arrowLi + ' 号（实测应为 0 / 81）');
   console.log('   pushFrame 包数 ' + fw.frames.length + '，总字节 ' + total + '（应为 3 / 164）');
   console.log('   ' + arrowLi + ' 号灯（→）RGB565 = 0x' + beadArrow.toString(16) + '（蓝 0x001F）');
   console.log('   首灯 RGB565 = 0x' + (fw.frames[0].data[0] | (fw.frames[0].data[1] << 8)).toString(16) + '（绿 0x07E0）');
@@ -167,7 +167,8 @@ const runner = new AsyncFunction(code + `
   await stopAll();
   console.log('   停止后 固件 mode =', fw.fi[2], 'switch =', fw.fi[1], '（应回到 1 / 1）');
 
-  const okShape = fw.frames.length === 3 && total === 164 && arrowLi === 81 && escLi === 1;
+  const okShape = fw.frames.length === 3 && total === 164 && arrowLi === 81 && escLi === 0
+    && S.G.leds === 82 && (S.G.byName.get('A') || {}).li === 47;
   console.log(okShape ? '\n✅ 协议链路无异常，帧长与分块正确' : '\n❌ 帧结构不对');
   process.exit(okShape ? 0 : 1);
 })();

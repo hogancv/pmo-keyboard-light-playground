@@ -10,3 +10,7 @@ dump_effects.js
 
 # 工作区数据
 .workbuddy/
+
+# 本地读取/对比产物
+slot1_*.json
+_*.html
