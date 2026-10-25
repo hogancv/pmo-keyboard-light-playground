@@ -75,6 +75,73 @@ window.onerror=function(m,src,l,c){
 .dl.er{color:#e08a80}
 .dl.ok{color:#6fd3a8;font-weight:600}
 </style>
+<style>
+/* ===== 自定义灯光编辑器 ===== */
+#btnEditor{background:var(--acc2);border-color:var(--acc2);color:#fff}
+#btnEditor:hover:not(:disabled){background:#0a2d45;border-color:#0a2d45;color:#fff}
+#edMask{position:fixed;inset:0;z-index:80;background:rgba(24,23,21,.62);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;padding:16px}
+#edMask.on{display:flex}
+.ed{width:min(1300px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+  background:var(--bg2);border:1px solid #d5d2ca;border-radius:14px;overflow:hidden;
+  box-shadow:0 26px 80px rgba(0,0,0,.42)}
+.ed-top{display:flex;align-items:center;gap:9px;padding:10px 14px;background:#fff;
+  border-bottom:1px solid var(--line);flex-wrap:wrap;flex:none}
+.ed-top .ttl{font-size:13.5px;font-weight:600;line-height:1.25}
+.ed-top .ttl small{display:block;font-weight:400;font-size:11px;color:var(--ink3);margin-top:1px}
+.ed-top .sp{flex:1;min-width:8px}
+.ed-body{display:grid;grid-template-columns:190px 1fr 208px;min-height:0;flex:1;overflow:hidden}
+@media(max-width:1060px){
+  .ed-body{grid-template-columns:1fr;overflow-y:auto}
+  .ed-rail{border:0!important;border-bottom:1px solid var(--line)!important}
+  .ed-mid{min-height:280px}
+}
+.ed-rail{padding:11px 11px 16px;overflow-y:auto;border-right:1px solid var(--line);background:#fff;scrollbar-width:thin}
+.ed-rail.r{border-right:0;border-left:1px solid var(--line)}
+.ed-group{margin-bottom:13px}
+.ed-group h4{margin:0 0 6px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--acc2);font-weight:600}
+.ed-group .row{gap:5px}
+.ed-group button{font-size:11.5px;padding:5px 6px;flex:1 1 44%;white-space:nowrap}
+.ed-mid{display:flex;flex-direction:column;min-width:0;background:#111110}
+.ed-cvwrap{padding:13px;flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+#edCv{width:100%;height:auto;display:block;margin:auto;cursor:crosshair;touch-action:none;user-select:none}
+.ed-foot{display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:11px;
+  color:#8f8d85;padding:7px 13px;border-top:1px solid #2a2a26;min-height:30px;flex-wrap:wrap;flex:none}
+.ed-presets{display:flex;align-items:center;gap:9px;padding:0 13px 11px;flex:none}
+.ed-presets .plbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#75736c;
+  font-family:var(--mono);flex:none}
+.ed-presets .prow{display:flex;gap:6px;flex-wrap:wrap}
+.ed-presets button{padding:0;width:46px;height:26px;border-radius:6px;border:1px solid #2a2a26;
+  position:relative;overflow:hidden;flex:none}
+.ed-presets button span{position:absolute;left:0;right:0;bottom:0;font-size:8.5px;line-height:1.3;
+  text-align:center;color:#fff;background:rgba(0,0,0,.42);font-family:var(--mono)}
+.ed-presets button:hover{transform:translateY(-1px);border-color:#6cc4ff}
+.ed-foot b{color:#c8c6bd;font-weight:500}
+.ed-foot .m{flex:1;text-align:right;color:#9d9a90;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sw{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.sw button{aspect-ratio:1;border-radius:5px;border:1px solid rgba(0,0,0,.16);padding:0;min-width:0}
+.sw button:hover{transform:scale(1.14);border-color:#333}
+.cur{display:flex;gap:8px;align-items:flex-start;margin-bottom:7px}
+.cur .big{width:42px;height:42px;border-radius:9px;border:1px solid rgba(0,0,0,.2);flex:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.cur .big.small{width:22px;height:22px;border-radius:6px}
+.cur .col{flex:1;min-width:0}
+.cur label{display:block;font-size:10px;color:var(--ink3);margin-bottom:2px}
+.cur input[type=color]{width:100%;height:23px;padding:0;border:1px solid var(--line);
+  border-radius:5px;background:#fff;cursor:pointer}
+.hexrow{display:flex;gap:5px;margin:6px 0 4px}
+.hexrow input{flex:1;font-family:var(--mono);font-size:11.5px;padding:4px 7px;
+  border:1px solid var(--line);border-radius:5px;min-width:0}
+.slotbar{display:flex;gap:4px}
+.slotlbl{font-size:11.5px;color:var(--ink3);white-space:nowrap}
+.slotbar button{flex:1 1 0;padding:5px 5px;font-family:var(--mono);font-size:11px;white-space:nowrap}
+.slotbar button.on{background:#eaf1f7;border-color:var(--acc);color:var(--acc2);font-weight:600}
+.tgl{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2);margin-top:6px;cursor:pointer}
+.tgl input{accent-color:var(--acc);margin:0}
+.ed-note{font-size:10.5px;color:var(--ink3);line-height:1.45;margin-top:6px}
+.ed-slotstate{font-size:10.5px;font-family:var(--mono);color:var(--ink3);margin-top:5px}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -94,6 +161,9 @@ window.onerror=function(m,src,l,c){
     <button id="btnSlot" disabled data-zh="写死到自定义一（存静态帧）" data-en="Save to Custom 1 (static frame)"
       data-zh-title="只把当前这一瞬间的静态 RGB 写进板载「自定义一」，动画本身存不进去"
       data-en-title="Writes only the static RGB of this one frame into onboard Custom 1 — the animation itself cannot be stored">写死到自定义一（存静态帧）</button>
+    <button id="btnEditor" data-zh="自定义灯光编辑器" data-en="Custom lighting editor"
+      data-zh-title="框选整片按键、一键填色，直接写进板载自定义灯光 1~5"
+      data-en-title="Box-select a block of keys, fill it in one click, write straight into onboard Custom 1..5">自定义灯光编辑器</button>
     <div class="sp"></div>
     <div style="min-width:210px">
       <select id="selLayout">
@@ -144,6 +214,138 @@ window.onerror=function(m,src,l,c){
              data-en="tx = sent to the keyboard, rx = replies from it, warn/er = problems. If it will not connect, check whether any rx line shows up.">tx = 发给键盘，rx = 键盘回包，warn/er = 异常。连不上时先看这里有没有 rx 行。</div>
       </div>
       <div class="card" style="margin-top:12px"><div class="hint" id="tip"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 自定义灯光编辑器（覆盖层） ============ -->
+<div id="edMask">
+  <div class="ed">
+    <div class="ed-top">
+      <div class="ttl">
+        <span data-zh="自定义灯光编辑器" data-en="Custom lighting editor">自定义灯光编辑器</span>
+        <small data-zh="拖拽框选一片按键 → 点颜色直接填 → 写入板载自定义槽"
+               data-en="Drag a box over keys → click a colour to fill → write into the onboard slot">拖拽框选一片按键 → 点颜色直接填 → 写入板载自定义槽</small>
+      </div>
+      <div class="sp"></div>
+      <span class="slotlbl" data-zh="自定义" data-en="Custom">自定义</span>
+      <div class="slotbar" id="edSlots"></div>
+      <button id="edRead" data-zh="读取该槽" data-en="Read slot">读取该槽</button>
+      <button class="primary" id="edWrite" data-zh="写入自定义槽" data-en="Write to slot">写入自定义槽</button>
+      <button id="edClose" data-zh="关闭" data-en="Close">关闭</button>
+    </div>
+    <div class="ed-body">
+      <aside class="ed-rail">
+        <div class="ed-group">
+          <h4 data-zh="选区" data-en="Selection">选区</h4>
+          <div class="row">
+            <button id="edSelAll" data-zh="全选" data-en="All">全选</button>
+            <button id="edSelInv" data-zh="反选" data-en="Invert">反选</button>
+            <button id="edSelRow" data-zh="补满整行" data-en="Full rows">补满整行</button>
+            <button id="edSelCol" data-zh="补满整列" data-en="Full cols">补满整列</button>
+            <button id="edSelNone" data-zh="清空选区" data-en="Deselect">清空选区</button>
+          </div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="填充" data-en="Fill">填充</h4>
+          <div class="row">
+            <button class="primary" id="edFill" data-zh="填主色 (Enter)" data-en="Fill (Enter)">填主色 (Enter)</button>
+            <button id="edBlack" data-zh="熄灭 (Del)" data-en="Blank (Del)">熄灭 (Del)</button>
+          </div>
+          <div class="row" style="margin-top:5px">
+            <button id="edGradH" data-zh="水平渐变" data-en="H gradient">水平渐变</button>
+            <button id="edGradV" data-zh="垂直渐变" data-en="V gradient">垂直渐变</button>
+            <button id="edGradR" data-zh="径向渐变" data-en="Radial">径向渐变</button>
+            <button id="edGradRH" data-zh="彩虹横扫" data-en="Rainbow H">彩虹横扫</button>
+            <button id="edGradRV" data-zh="彩虹纵扫" data-en="Rainbow V">彩虹纵扫</button>
+          </div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="微调选区" data-en="Adjust">微调选区</h4>
+          <div class="row">
+            <button id="edHueL" data-zh="色相 −15°" data-en="Hue −15°">色相 −15°</button>
+            <button id="edHueR" data-zh="色相 +15°" data-en="Hue +15°">色相 +15°</button>
+            <button id="edDim" data-zh="暗一档" data-en="Darker">暗一档</button>
+            <button id="edLite" data-zh="亮一档" data-en="Brighter">亮一档</button>
+            <button id="edInvert" data-zh="反色" data-en="Invert colour">反色</button>
+            <button id="edRowFix" data-zh="同色→整行" data-en="Row from key">同色→整行</button>
+          </div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="历史" data-en="History">历史</h4>
+          <div class="row">
+            <button id="edUndo" data-zh="撤销 ⌃Z" data-en="Undo ⌃Z">撤销 ⌃Z</button>
+            <button id="edRedo" data-zh="重做 ⌃Y" data-en="Redo ⌃Y">重做 ⌃Y</button>
+          </div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="文件" data-en="File">文件</h4>
+          <div class="row">
+            <button id="edExport" data-zh="导出 JSON" data-en="Export JSON">导出 JSON</button>
+            <button id="edImport" data-zh="导入 JSON" data-en="Import JSON">导入 JSON</button>
+          </div>
+          <div class="ed-note" data-zh="导入认本页导出的文件，也认驱动导出的 rdr-profile-*.json（读 keyItemColor 里的 lightIndex + color）。"
+               data-en="Import accepts this page's export, and also the driver's rdr-profile-*.json (reads lightIndex + color from keyItemColor).">导入认本页导出的文件，也认驱动导出的 rdr-profile-*.json（读 keyItemColor 里的 lightIndex + color）。</div>
+          <input type="file" id="edFile" accept=".json,application/json" hidden>
+        </div>
+      </aside>
+
+      <div class="ed-mid">
+        <div class="ed-cvwrap"><canvas id="edCv" width="940" height="340"></canvas></div>
+        <div class="ed-presets">
+          <span class="plbl" data-zh="预设" data-en="Presets">预设</span>
+          <div class="prow" id="edPresets"></div>
+        </div>
+        <div class="ed-foot">
+          <span><span data-zh="选区" data-en="Selected">选区</span> <b id="edSelN">0</b></span>
+          <span><span data-zh="光标" data-en="Cursor">光标</span> <b id="edHover">—</b></span>
+          <span><span data-zh="推送" data-en="Push">推送</span> <b id="edPushN">—</b></span>
+          <span class="m" id="edMsg"></span>
+        </div>
+      </div>
+
+      <aside class="ed-rail r">
+        <div class="ed-group">
+          <h4 data-zh="颜色" data-en="Colour">颜色</h4>
+          <div class="cur">
+            <div class="big" id="edCurSw"></div>
+            <div class="col">
+              <label data-zh="主色（填充用）" data-en="Main (fills)">主色（填充用）</label>
+              <input type="color" id="edColor" value="#ff5656">
+            </div>
+          </div>
+          <div class="cur">
+            <div class="big small" id="edCur2Sw"></div>
+            <div class="col">
+              <label data-zh="末端色（渐变用）" data-en="End (gradients)">末端色（渐变用）</label>
+              <input type="color" id="edColor2" value="#568cff">
+            </div>
+          </div>
+          <div class="hexrow">
+            <input id="edHex" value="#ff5656" spellcheck="false">
+            <button id="edPick" data-zh="吸管" data-en="Pick"
+              data-zh-title="打开吸管后点键盘上的任意键，取它的颜色"
+              data-en-title="With the dropper on, click any key to take its colour">吸管</button>
+          </div>
+          <div class="ed-note" data-zh="点色块 = 改主色；已有选区时点色块会顺手把选区填掉。Shift+点 = 设为末端色。"
+               data-en="Click a swatch to set the main colour — with a selection it fills at once. Shift+click sets the end colour.">点色块 = 改主色；已有选区时点色块会顺手把选区填掉。Shift+点 = 设为末端色。</div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="调色板" data-en="Palette">调色板</h4>
+          <div class="sw" id="edPal"></div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="最近使用" data-en="Recent">最近使用</h4>
+          <div class="sw" id="edRecent"></div>
+        </div>
+        <div class="ed-group">
+          <h4 data-zh="选项" data-en="Options">选项</h4>
+          <label class="tgl"><input type="checkbox" id="edLive" checked><span data-zh="编辑时实时推给键盘" data-en="Push live while editing">编辑时实时推给键盘</span></label>
+          <div class="ed-note" data-zh="实时推帧要先在主页点过「开启灯光通道」；没开启时编辑只留在本页。"
+               data-en="Live push needs &quot;Enable live channel&quot; on the main page first; otherwise edits stay on this page only.">实时推帧要先在主页点过「开启灯光通道」；没开启时编辑只留在本页。</div>
+          <div class="ed-slotstate" id="edSlotState"></div>
+        </div>
+      </aside>
     </div>
   </div>
 </div>
@@ -791,6 +993,8 @@ function setStatus(t, c, en){
   const el = $('devStatus');
   el.textContent = (LANG === 'en' && en) ? en : t;
   el.style.borderLeft = '3px solid ' + (c || 'transparent');
+  // 连接状态/通道状态变了，编辑器右侧那行小字跟着刷新
+  try { if (typeof edRelabel === 'function') edRelabel(); } catch (e){}
 }
 
 function setLayout(key){
@@ -804,6 +1008,8 @@ function setLayout(key){
   $('sLayout').textContent = key + ' · ' + S.G.leds + L(' 灯', ' LEDs');
   $('sLeds').textContent = S.G.leds;
   $('selLayout').value = key;
+  // 换了机型：编辑器里的键位和灯号都变了，清空选区重画
+  if (ED && ED.open){ ED.sel.clear(); ED.hover = -1; try { edDraw(); } catch (e){} }
 }
 function startFx(i){
   S.fxIdx = i;
@@ -864,7 +1070,7 @@ function tick(now){
     for (let i = 0; i < out.length; i++) out[i] = out[i] * br;
   }
 
-  draw();
+  if (!(ED && ED.open)) draw();
 
   S.frames++;
   if (now - S.fpsT > 500){
@@ -873,7 +1079,8 @@ function tick(now){
     $('sFps').textContent = S.fpsShown;
   }
 
-  if (S.dev && S.armed && now - S.pushAt > Math.max(1000 / p.fps, 33)) pushFrame();
+  // 编辑器打开时由编辑器自己按需推帧，主循环让出通道，避免两边抢着发 0x2E
+  if (S.dev && S.armed && !(ED && ED.open) && now - S.pushAt > Math.max(1000 / p.fps, 33)) pushFrame();
 }
 
 const EFFECTS = [
@@ -1594,13 +1801,15 @@ const TIP = {
       '停止时会自动把 <code>lightMode</code> 还原成开启前的值，否则键盘会停在自定义模式上、帧一停就全黑（异常中断也会自动还原）。<br>' +
       '键盘面板显示<b>「自定义一」是正常的</b>：WAVE75 固件只有一个自定义槽（<code>lightCustomIndex=0</code>），实时推帧就挂在这个槽上。推帧期间你看到的是本页效果，页面停住后才会回落到槽里存的静态颜色。<br>' +
       '<b>写死到自定义一</b>：只把<b>按下按钮那一瞬间</b>的画面按 384 字节 RGB888（128 键 × 1 帧）写进板载槽（命令 <code>0x23</code>），存下来的是一张<b>静态 RGB 快照，不是动画</b> —— 板载槽只有一帧的容量，动画存不进去。掉电保留，不占用实时通道。<br>' +
-      '所有实时推帧都不进 EEPROM；只有点了「写死到自定义一」才会改写板载存档，原存档会被覆盖。',
+      '<b>自定义灯光编辑器</b>（顶部按钮）是给板载槽用的静态编辑器：拖框多选一片按键 → 点颜色即填，还能做渐变、八种预设、色相/亮度微调，满意后点「写入自定义槽」落盘（0x23/0x25/0x27/0x29/0x2B，对应驱动的自定义灯光 1–5）。开着实时通道时每一笔改动都会立刻推到键盘；也能读回板载已有的配色（0x22）再改，或导入驱动导出的 rdr-profile-*.json。<br>' +
+      '所有实时推帧都不进 EEPROM；只有点「写死到自定义一」或编辑器的「写入自定义槽」才会改写板载存档，原存档会被覆盖。',
   en: 'Pure preview until a device is connected. After connecting, click "Enable live channel": it reads the 64-byte parameter table, sets <code>lightMode</code> to 253 (live custom), writes it back and <b>reads it back to confirm</b>, then pushes one all-red frame so you can verify the link.<br>' +
       'Frames go through <code>0x2E SET_LIGHT_SYNC</code> (RGB565, 2 bytes per LED). WAVE75 has no matrix screen; the <code>0x3C</code> path is rejected by the firmware, so do not use it.<br>' +
       'Stopping restores <code>lightMode</code> to the value it had before, otherwise the keyboard stays in custom mode and goes dark the moment frames stop (an interrupted session restores it too).<br>' +
       'The keyboard panel showing <b>"Custom 1" is expected</b>: WAVE75 firmware has a single custom slot (<code>lightCustomIndex=0</code>) and live frames ride on it. While frames are being pushed you see this page; the static colour stored in the slot only comes back once the page stops.<br>' +
       '<b>Save to Custom 1</b> writes the frame <b>at the moment you press the button</b> as 384 bytes of RGB888 (128 keys × 1 frame) into the onboard slot (command <code>0x23</code>). What gets stored is a <b>static RGB snapshot, not the animation</b> — the slot only holds one frame, so an animation cannot be saved. It survives power-off and does not occupy the live channel.<br>' +
-      'Live frames never touch EEPROM; only pressing "Save to Custom 1" rewrites the onboard profile, and the previous one is overwritten.'
+      '<b>Custom lighting editor</b> (button in the top bar) is the static editor for the onboard slot: drag a box over keys → click a colour to fill, plus gradients, eight presets and hue/brightness tweaks. Press "Write to slot" to store it (0x23/0x25/0x27/0x29/0x2B = Custom 1..5 in the driver). With the live channel armed every edit is pushed to the keyboard immediately. It can also read an existing onboard profile back (0x22), or import the driver\'s rdr-profile-*.json.<br>' +
+      'Live frames never touch EEPROM; only "Save to Custom 1" or the editor\'s "Write to slot" rewrites the onboard profile, and the previous one is overwritten.'
 };
 
 // 切换界面语言：静态文案读 data-zh / data-en，其余按当前 LANG 重画
@@ -1632,6 +1841,8 @@ function applyLang(){
     $('sFx').textContent = fxName(EFFECTS[S.fxIdx]);
   }
   if (S.lastStatus) setStatus(S.lastStatus[0], S.lastStatus[1], S.lastStatus[2]);
+  try { if (typeof edRelabel === 'function') edRelabel(); } catch (e){}
+  try { if (ED && ED.open) edDraw(); } catch (e){}
 }
 
 function setLang(lang){
@@ -1880,6 +2091,824 @@ window.addEventListener('keydown', function(e){
   if (e.repeat) return;
   keyHit(e.code);
 });
+
+/* ============================================================
+   自定义灯光编辑器
+   板载自定义槽 = 128 个位置 × RGB888 = 384 字节，索引就是灯号。
+     写槽：0x23 / 0x25 / 0x27 / 0x29 / 0x2B（自定义 1..5）
+     读槽：0x22 / 0x24 / 0x26 / 0x28 / 0x2A（0x22 已实测，其余按同规律推断）
+   编辑只改内存里的 384 字节；点「写入自定义槽」才真正落 Flash。
+   ============================================================ */
+const CMD_SLOT_RD = [0x22, 0x24, 0x26, 0x28, 0x2A];
+
+// 用 var 而不是 const：setLayout / tick 在本段之前就定义好了，var 的提前声明
+// 能保证它们被更早调用时 ED 只是 undefined 而不是抛 TDZ 错误。
+var ED = {
+  open: false, slot: 0, buf: new Uint8Array(384),
+  sel: new Set(), hover: -1, drag: null, tool: 'box',
+  color: [255, 86, 86], color2: [86, 140, 255],
+  undo: [], redo: [], live: true,
+  lastPush: 0, pushing: false, recent: [], dirty: false
+};
+
+function edMsg(t){
+  const el = $('edMsg'); if (el) el.textContent = t || '';
+}
+function edHex(r, g, b){
+  return '#' + [r, g, b].map(function(v){
+    return clamp(Math.round(v) || 0, 0, 255).toString(16).padStart(2, '0');
+  }).join('');
+}
+function edParse(h){
+  if (typeof h !== 'string') return null;
+  h = h.trim().replace(/^#/, '');
+  if (h.length === 3) h = h.split('').map(function(c){ return c + c; }).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+function edRgb2Hsv(r, g, b){
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d){
+    if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (mx === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return [h, mx ? d / mx : 0, mx];
+}
+function edGet(li){
+  const o = li * 3;
+  if (o < 0 || o + 2 >= 384) return [0, 0, 0];
+  return [ED.buf[o], ED.buf[o + 1], ED.buf[o + 2]];
+}
+function edPut(li, c){
+  const o = li * 3;
+  if (o < 0 || o + 2 >= 384) return;
+  ED.buf[o] = clamp(Math.round(c[0]), 0, 255);
+  ED.buf[o + 1] = clamp(Math.round(c[1]), 0, 255);
+  ED.buf[o + 2] = clamp(Math.round(c[2]), 0, 255);
+}
+function edKeys(){
+  return (S.G && S.G.keys) ? S.G.keys : [];
+}
+function edSelKeys(){
+  const out = [];
+  for (const k of edKeys()) if (ED.sel.has(k.li)) out.push(k);
+  return out;
+}
+
+// ---------- 撤销 / 重做 ----------
+function edSnap(){
+  ED.undo.push(ED.buf.slice());
+  if (ED.undo.length > 90) ED.undo.shift();
+  ED.redo.length = 0;
+  ED.dirty = true;
+}
+function edUndo(){
+  if (!ED.undo.length){ edMsg(L('没有可撤销的操作', 'Nothing to undo')); return; }
+  ED.redo.push(ED.buf.slice());
+  ED.buf = ED.undo.pop();
+  edAfter();
+  edMsg(L('已撤销', 'Undone'));
+}
+function edRedo(){
+  if (!ED.redo.length){ edMsg(L('没有可重做的操作', 'Nothing to redo')); return; }
+  ED.undo.push(ED.buf.slice());
+  ED.buf = ED.redo.pop();
+  edAfter();
+  edMsg(L('已重做', 'Redone'));
+}
+function edAfter(){
+  ED.dirty = true;
+  edDraw();
+  edPushLive();
+}
+
+// ---------- 画布 ----------
+function edSize(){
+  const cv = $('edCv'), G = S.G;
+  if (!cv || !G) return null;
+  if (cv.width !== G.w) cv.width = G.w;
+  if (cv.height !== G.h) cv.height = G.h;
+  return cv;
+}
+
+function edDraw(){
+  const cv = edSize(); if (!cv) return;
+  const G = S.G, ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#111110';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  const sel = ED.sel;
+  for (const k of G.keys){
+    const x = k.x * G.w, y = k.y * G.h, w = k.w * G.w, h = k.h * G.h;
+    const c = edGet(k.li);
+    const lum = (c[0] * 0.3 + c[1] * 0.6 + c[2] * 0.1) / 255;
+    const pad = 1.6;
+    roundRect(ctx, x + pad, y + pad, w - pad * 2, h - pad * 2, 4);
+    ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+    ctx.fill();
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = lum > 0.05 ? 'rgba(255,255,255,' + (0.05 + lum * 0.2).toFixed(2) + ')'
+                                 : 'rgba(255,255,255,.055)';
+    ctx.stroke();
+    if (w > 15 && k.name){
+      const fs = Math.max(7, Math.min(11, h * 0.3));
+      ctx.font = fs + 'px Consolas,"SFMono-Regular",Menlo,monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = lum > 0.5 ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.66)';
+      ctx.fillText(k.name, x + w / 2, y + h / 2 + 0.5);
+    }
+  }
+
+  // 选中：白色描边 + 一点高光，保证深色键上也看得见
+  if (sel.size){
+    for (const k of G.keys){
+      if (!sel.has(k.li)) continue;
+      const x = k.x * G.w, y = k.y * G.h, w = k.w * G.w, h = k.h * G.h;
+      roundRect(ctx, x + 2, y + 2, w - 4, h - 4, 4);
+      ctx.strokeStyle = 'rgba(255,255,255,.92)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.10)';
+      ctx.fill();
+    }
+  }
+
+  // 悬停
+  if (ED.hover >= 0){
+    const k = G.keys.find(function(x){ return x.li === ED.hover; });
+    if (k){
+      const x = k.x * G.w, y = k.y * G.h, w = k.w * G.w, h = k.h * G.h;
+      roundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, 4);
+      ctx.strokeStyle = 'rgba(108,196,255,.95)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // 框选框
+  const d = ED.drag;
+  if (d && d.moved){
+    const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1);
+    const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
+    ctx.fillStyle = 'rgba(108,196,255,.13)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(108,196,255,.95)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 4]);
+    ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    ctx.setLineDash([]);
+  }
+
+  const n = $('edSelN'); if (n) n.textContent = sel.size;
+  const hv = $('edHover');
+  if (hv){
+    const k = ED.hover >= 0 ? G.keys.find(function(x){ return x.li === ED.hover; }) : null;
+    hv.textContent = k ? (k.name + ' · LED ' + k.li) : '—';
+  }
+}
+
+// ---------- 坐标 / 命中 ----------
+function edXY(e){
+  const cv = $('edCv');
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX - r.left) / Math.max(1, r.width) * cv.width,
+          (e.clientY - r.top) / Math.max(1, r.height) * cv.height];
+}
+function edKeyAt(mx, my){
+  const G = S.G; if (!G) return null;
+  for (let i = G.keys.length - 1; i >= 0; i--){
+    const k = G.keys[i];
+    if (mx >= k.x * G.w && mx <= (k.x + k.w) * G.w &&
+        my >= k.y * G.h && my <= (k.y + k.h) * G.h) return k;
+  }
+  return null;
+}
+function edRectKeys(x0, y0, x1, y1){
+  const G = S.G, out = [];
+  const ax = Math.min(x0, x1), bx = Math.max(x0, x1);
+  const ay = Math.min(y0, y1), by = Math.max(y0, y1);
+  for (const k of G.keys){
+    const kx0 = k.x * G.w, kx1 = (k.x + k.w) * G.w;
+    const ky0 = k.y * G.h, ky1 = (k.y + k.h) * G.h;
+    if (kx1 > ax && kx0 < bx && ky1 > ay && ky0 < by) out.push(k.li);
+  }
+  return out;
+}
+
+// ---------- 指针交互 ----------
+function edDown(e){
+  if (!S.G) return;
+  e.preventDefault();
+  const p = edXY(e);
+  const k = edKeyAt(p[0], p[1]);
+
+  if (ED.tool === 'pick' || e.altKey){
+    if (k){ edSetColor(edGet(k.li), false); edMsg(L('取色 LED ' + k.li, 'Picked LED ' + k.li)); }
+    ED.tool = 'box';
+    const b = $('edPick'); if (b) b.classList.remove('on');
+    return;
+  }
+
+  const mode = e.shiftKey ? 'add' : (e.ctrlKey || e.metaKey ? 'toggle' : 'new');
+  ED.drag = { x0: p[0], y0: p[1], x1: p[0], y1: p[1], moved: false,
+              mode: mode, key: k ? k.li : -1, base: new Set(ED.sel) };
+  try { $('edCv').setPointerCapture(e.pointerId); } catch (err){}
+  edDraw();
+}
+
+function edMove(e){
+  if (!S.G) return;
+  const p = edXY(e);
+  const d = ED.drag;
+  if (!d){
+    const k = edKeyAt(p[0], p[1]);
+    const li = k ? k.li : -1;
+    if (li !== ED.hover){ ED.hover = li; edDraw(); }
+    return;
+  }
+  d.x1 = p[0]; d.y1 = p[1];
+  if (!d.moved && (Math.abs(d.x1 - d.x0) > 3 || Math.abs(d.y1 - d.y0) > 3)) d.moved = true;
+
+  if (d.moved){
+    const hit = edRectKeys(d.x0, d.y0, d.x1, d.y1);
+    const next = new Set(d.mode === 'new' ? [] : d.base);
+    if (d.mode === 'toggle'){
+      for (const li of hit){ if (d.base.has(li)) next.delete(li); else next.add(li); }
+    } else if (d.mode === 'add'){
+      for (const li of hit) next.add(li);
+    } else {
+      for (const li of hit) next.add(li);
+    }
+    ED.sel = next;
+  }
+  edDraw();
+}
+
+function edUp(e){
+  const d = ED.drag;
+  if (!d) return;
+  ED.drag = null;
+  try { $('edCv').releasePointerCapture(e.pointerId); } catch (err){}
+
+  if (!d.moved){
+    // 单击 = 选一颗；点空白 = 清空选区
+    if (d.key >= 0){
+      if (d.mode === 'toggle'){
+        if (ED.sel.has(d.key)) ED.sel.delete(d.key); else ED.sel.add(d.key);
+      } else if (d.mode === 'add'){
+        ED.sel.add(d.key);
+      } else {
+        ED.sel = new Set([d.key]);
+      }
+    } else if (d.mode === 'new'){
+      ED.sel.clear();
+    }
+  }
+  const n = ED.sel.size;
+  edMsg(n ? L('已选 ' + n + ' 颗键', n + ' keys selected')
+          : L('在键盘上拖一个框试试', 'Drag a box over the keys'));
+  edDraw();
+}
+
+// ---------- 颜色 ----------
+function edSetColor(c, fillNow){
+  ED.color = [c[0] | 0, c[1] | 0, c[2] | 0];
+  const hex = edHex(ED.color[0], ED.color[1], ED.color[2]);
+  const sw = $('edCurSw'); if (sw) sw.style.background = hex;
+  const inp = $('edColor'); if (inp) inp.value = hex;
+  const hx = $('edHex'); if (hx) hx.value = hex;
+  if (fillNow && ED.sel.size) edFill(ED.color);
+}
+function edSetColor2(c){
+  ED.color2 = [c[0] | 0, c[1] | 0, c[2] | 0];
+  const hex = edHex(ED.color2[0], ED.color2[1], ED.color2[2]);
+  const sw = $('edCur2Sw'); if (sw) sw.style.background = hex;
+  const inp = $('edColor2'); if (inp) inp.value = hex;
+}
+function edRemember(c){
+  const hex = edHex(c[0], c[1], c[2]);
+  ED.recent = [hex].concat(ED.recent.filter(function(x){ return x !== hex; })).slice(0, 16);
+  edRenderRecent();
+}
+function edRenderRecent(){
+  const box = $('edRecent'); if (!box) return;
+  box.innerHTML = '';
+  ED.recent.forEach(function(hex){
+    const b = document.createElement('button');
+    b.style.background = hex;
+    b.title = hex;
+    b.onclick = function(e){ edSwatchClick(hex, e); };
+    box.appendChild(b);
+  });
+  if (!ED.recent.length){
+    const s = document.createElement('div');
+    s.style.cssText = 'grid-column:1/-1;font-size:10.5px;color:#8a8880';
+    s.textContent = L('还没用过颜色', 'No colours used yet');
+    box.appendChild(s);
+  }
+}
+function edSwatchClick(hex, e){
+  const c = edParse(hex); if (!c) return;
+  if (e && e.shiftKey){ edSetColor2(c); edMsg(L('已设为末端色 ' + hex, 'End colour ' + hex)); return; }
+  edSetColor(c, ED.sel.size > 0);
+  if (ED.sel.size) edMsg(L('已填 ' + ED.sel.size + ' 颗 · ' + hex, 'Filled ' + ED.sel.size + ' keys · ' + hex));
+}
+
+// ---------- 编辑操作 ----------
+function edFill(c){
+  const ks = edSelKeys();
+  if (!ks.length){ edMsg(L('先框选要填色的按键', 'Select some keys first')); return; }
+  edSnap();
+  for (const k of ks) edPut(k.li, c);
+  edRemember(c);
+  edAfter();
+  edMsg(L('已填 ' + ks.length + ' 颗 · ' + edHex(c[0], c[1], c[2]),
+          'Filled ' + ks.length + ' keys · ' + edHex(c[0], c[1], c[2])));
+}
+
+function edEachSelected(fn){
+  const ks = edSelKeys();
+  if (!ks.length){ edMsg(L('先框选要调整的按键', 'Select some keys first')); return 0; }
+  edSnap();
+  for (const k of ks){ const c = edGet(k.li); const o = fn(c, k); if (o) edPut(k.li, o); }
+  edAfter();
+  return ks.length;
+}
+
+function edGrad(mode){
+  const ks = edSelKeys();
+  if (!ks.length){ edMsg(L('先框选要渐变的一片按键', 'Select some keys first')); return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const k of ks){
+    if (k.x < x0) x0 = k.x;
+    if (k.y < y0) y0 = k.y;
+    if (k.x + k.w > x1) x1 = k.x + k.w;
+    if (k.y + k.h > y1) y1 = k.y + k.h;
+  }
+  const A = ED.color, B = ED.color2;
+  const hsvA = edRgb2Hsv(A[0], A[1], A[2]);
+  edSnap();
+  for (const k of ks){
+    const cx = k.x + k.w / 2, cy = k.y + k.h / 2;
+    if (mode === 'h' || mode === 'v'){
+      const t = mode === 'h' ? (cx - x0) / ((x1 - x0) || 1) : (cy - y0) / ((y1 - y0) || 1);
+      edPut(k.li, [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t]);
+    } else if (mode === 'r'){
+      const dx = (cx - (x0 + x1) / 2) / (((x1 - x0) / 2) || 1);
+      const dy = (cy - (y0 + y1) / 2) / (((y1 - y0) / 2) || 1);
+      const t = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+      edPut(k.li, [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t]);
+    } else {
+      const t = mode === 'rh' ? (cx - x0) / ((x1 - x0) || 1) : (cy - y0) / ((y1 - y0) || 1);
+      const c = hsv(hsvA[0] + t, Math.max(0.55, hsvA[1]), Math.max(0.6, hsvA[2]));
+      edPut(k.li, c);
+    }
+  }
+  edAfter();
+  edMsg(L('已对 ' + ks.length + ' 颗键做渐变', 'Gradient applied to ' + ks.length + ' keys'));
+}
+
+// ---------- 预设图案 ----------
+const ED_PRESETS = [
+  { zh: '彩虹 →', en: 'Rainbow →', kind: 'rh' },
+  { zh: '彩虹 ↓', en: 'Rainbow ↓', kind: 'rv', vert: true },
+  { zh: '日落', en: 'Sunset', kind: 'stops', stops: [[255, 94, 0], [255, 0, 128], [88, 0, 255]] },
+  { zh: '海洋', en: 'Ocean', kind: 'stops', stops: [[0, 40, 140], [0, 190, 220], [170, 255, 235]] },
+  { zh: '极光', en: 'Aurora', kind: 'stops', stops: [[0, 255, 140], [0, 120, 255], [150, 0, 255]] },
+  { zh: '赛博', en: 'Cyber', kind: 'stops', stops: [[255, 0, 120], [0, 255, 220]] },
+  { zh: '暖白', en: 'Warm', kind: 'solid', color: [255, 214, 170] },
+  { zh: '随机', en: 'Random', kind: 'random' }
+];
+
+function edLerpStops(stops, t){
+  t = Math.max(0, Math.min(1, t || 0));
+  const n = stops.length - 1;
+  const f = t * n, i = Math.min(n - 1, Math.floor(f)), u = f - i;
+  const a = stops[i], b = stops[i + 1];
+  return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+}
+
+function edPresetCss(p){
+  const hex = function(c){ return edHex(c[0], c[1], c[2]); };
+  const dir = p.vert ? '180deg' : '90deg';
+  if (p.kind === 'rh' || p.kind === 'rv'){
+    return 'linear-gradient(' + dir + ',#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)';
+  }
+  if (p.kind === 'random') return 'linear-gradient(90deg,#ff3b6b,#ffd23b,#3bff9e,#3bd2ff,#a13bff)';
+  if (p.kind === 'solid') return hex(p.color);
+  return 'linear-gradient(' + dir + ',' + p.stops.map(hex).join(',') + ')';
+}
+
+function edPreset(idx){
+  const p = ED_PRESETS[idx]; if (!p) return;
+  const useSel = ED.sel.size > 0;
+  const ks = useSel ? edSelKeys() : edKeys();
+  if (!ks.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const k of ks){
+    if (k.x < x0) x0 = k.x;
+    if (k.y < y0) y0 = k.y;
+    if (k.x + k.w > x1) x1 = k.x + k.w;
+    if (k.y + k.h > y1) y1 = k.y + k.h;
+  }
+  edSnap();
+  for (const k of ks){
+    const cx = k.x + k.w / 2, cy = k.y + k.h / 2;
+    const t = p.vert ? (cy - y0) / ((y1 - y0) || 1) : (cx - x0) / ((x1 - x0) || 1);
+    let c;
+    if (p.kind === 'rh' || p.kind === 'rv') c = hsv(t, 0.88, 1);
+    else if (p.kind === 'stops') c = edLerpStops(p.stops, t);
+    else if (p.kind === 'solid') c = p.color;
+    else c = hsv(Math.random(), 0.82, 1);
+    edPut(k.li, c);
+  }
+  edAfter();
+  edMsg(L('预设「' + p.zh + '」套到 ' + ks.length + ' 颗' + (useSel ? '（选区）' : '（整把）'),
+          'Preset "' + p.en + '" on ' + ks.length + ' keys' + (useSel ? ' (selection)' : ' (whole board)')));
+}
+
+function edBuildPresets(){
+  const box = $('edPresets'); if (!box) return;
+  box.innerHTML = '';
+  ED_PRESETS.forEach(function(p, i){
+    const b = document.createElement('button');
+    b.style.background = edPresetCss(p);
+    b.title = L(p.zh, p.en) + L('（有选区就只套选区）', ' (applies to the selection when there is one)');
+    const s = document.createElement('span');
+    s.textContent = L(p.zh, p.en);
+    b.appendChild(s);
+    b.onclick = function(){ edPreset(i); };
+    box.appendChild(b);
+  });
+  ED.plang = LANG;
+}
+
+// 「同色→整行」：把选区所在的每一行都补满，并用该行被选中那颗的颜色统一
+function edRowFix(){
+  const ks = edSelKeys();
+  if (!ks.length){ edMsg(L('先选一颗键', 'Select a key first')); return; }
+  const rows = new Set(ks.map(function(k){ return k.r; }));
+  const G = S.G;
+  edSnap();
+  let n = 0;
+  for (const r of rows){
+    const line = G.keys.filter(function(k){ return k.r === r; }).sort(function(a, b){ return a.c - b.c; });
+    // 以「这一行被选中的那颗」为基准色，没选中就退回最左一颗
+    const anchor = ks.filter(function(k){ return k.r === r; })[0] || line[0];
+    const base = edGet(anchor.li);
+    for (const k of line){ edPut(k.li, base); ED.sel.add(k.li); n++; }
+  }
+  edAfter();
+  edMsg(L('整行补齐 ' + n + ' 颗', n + ' keys filled in rows'));
+}
+
+// ---------- 实时推帧 ----------
+async function edPushLive(force){
+  if (!ED.live && !force) return;
+  if (!S.dev || !S.armed || ED.pushing) return;
+  const now = performance.now();
+  if (!force && now - ED.lastPush < 45) return;
+  ED.lastPush = now;
+  ED.pushing = true;
+  try {
+    const G = S.G;
+    const n = Math.max(S.ledCount || 0, G.leds, 82);
+    const frame = new Uint8Array(n * 2);
+    for (let i = 0; i < n; i++){
+      const o = i * 3;
+      const enc = rgb565(ED.buf[o] || 0, ED.buf[o + 1] || 0, ED.buf[o + 2] || 0);
+      frame[i * 2] = enc[0]; frame[i * 2 + 1] = enc[1];
+    }
+    for (let off = 0; off < frame.length; off += S.chunk){
+      const len = Math.min(S.chunk, frame.length - off);
+      await S.dev.sendReport(S.reportId, build(CMD.LIGHT_SYNC, off, len, frame.subarray(off, off + len)));
+    }
+    const el = $('edPushN'); if (el) el.textContent = 'ok ' + frame.length + 'B';
+  } catch (e){
+    const el = $('edPushN'); if (el) el.textContent = 'err';
+  }
+  ED.pushing = false;
+}
+
+// ---------- 读 / 写板载槽 ----------
+async function edReadSlot(){
+  if (!S.dev){ edMsg(L('先连接键盘', 'Connect the keyboard first')); return; }
+  const btn = $('edRead'); if (btn) btn.disabled = true;
+  edMsg(L('读取自定义' + (ED.slot + 1) + '…', 'Reading Custom ' + (ED.slot + 1) + '…'));
+  try {
+    const data = await readChunked(CMD_SLOT_RD[ED.slot], 384, 900);
+    if (!data || data.length < 384){
+      edMsg(L('读不到（该槽可能不存在）', 'No data — slot may not exist'));
+      diag('warn', '读槽 ' + ED.slot + '（0x' + CMD_SLOT_RD[ED.slot].toString(16) + '）只返回 '
+        + (data ? data.length : 0) + '/384 字节', 'slot read ' + ED.slot + ' returned only '
+        + (data ? data.length : 0) + '/384 bytes');
+      return;
+    }
+    edSnap();
+    for (let i = 0; i < 384; i++) ED.buf[i] = data[i] || 0;
+    ED.dirty = false;
+    edAfter();
+    edMsg(L('已读入自定义' + (ED.slot + 1), 'Loaded Custom ' + (ED.slot + 1)));
+    diag('ok', '读槽 ' + ED.slot + ' 成功，384 字节', 'slot ' + ED.slot + ' read OK, 384 bytes');
+  } catch (e){
+    edMsg(L('读取失败：' + e.message, 'Read failed: ' + e.message));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function edWriteSlot(){
+  if (!S.dev){ edMsg(L('先连接键盘', 'Connect the keyboard first')); return; }
+  const name = L('自定义' + (ED.slot + 1), 'Custom ' + (ED.slot + 1));
+  const ask = L(
+    '把编辑器里的 128 键静态色写进板载「' + name + '」？\n\n'
+    + '· 会覆盖该槽原有存档，掉电保留\n'
+    + '· 板载只能存一帧静态 RGB，动画存不进去\n'
+    + '· 写入后要切走再切回才会看到更新',
+    'Write the 128-key static colours into onboard "' + name + '"?\n\n'
+    + '· This overwrites that slot and survives power-off\n'
+    + '· The slot holds one static RGB frame — animations cannot be stored\n'
+    + '· Switch away and back after writing to see it applied'
+  );
+  if (!confirm(ask)) return;
+
+  const btn = $('edWrite'); if (btn) btn.disabled = true;
+  edMsg(L('写入自定义' + (ED.slot + 1) + '…', 'Writing Custom ' + (ED.slot + 1) + '…'));
+  try {
+    await request(CMD.START, 0, 0, null, 900);
+    const res = [];
+    for (let off = 0; off < 384; off += S.chunk){
+      const len = Math.min(S.chunk, 384 - off);
+      const p = await request(CMD_SLOT[ED.slot], off, len, ED.buf.subarray(off, off + len), 1000);
+      res.push(p ? p.status : -1);
+      await sleep(12);
+    }
+    await request(CMD.STOP, 0, 0, null, 700);
+    const ok = res.length && res.every(function(x){ return x === ST_OK; });
+    if (ok){
+      ED.dirty = false;
+      edMsg(L('已写入自定义' + (ED.slot + 1) + ' · 切走再切回即可看到', 'Saved to Custom ' + (ED.slot + 1)));
+      setStatus(L('已写入「' + name + '」· 静态帧，掉电保留', 'Saved to "' + name + '" · static frame, kept after power off'),
+        '#7ec89a', '');
+    } else {
+      edMsg(L('写入未全部确认，看诊断日志', 'Write not fully acknowledged — see diagnostics'));
+    }
+    diag(ok ? 'ok' : 'warn', '写槽 ' + ED.slot + '（0x' + CMD_SLOT[ED.slot].toString(16) + '）：'
+      + res.map(function(x){ return x < 0 ? '无应答' : '0x' + x.toString(16); }).join(' / '),
+      'slot write ' + ED.slot + ' (0x' + CMD_SLOT[ED.slot].toString(16) + '): '
+      + res.map(function(x){ return x < 0 ? 'no reply' : '0x' + x.toString(16); }).join(' / '));
+  } catch (e){
+    edMsg(L('写入失败：' + e.message, 'Write failed: ' + e.message));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ---------- 导入 / 导出 ----------
+function edExport(){
+  const G = S.G;
+  const colors = [];
+  for (let i = 0; i < 128; i++){
+    const o = i * 3;
+    colors.push(edHex(ED.buf[o], ED.buf[o + 1], ED.buf[o + 2]));
+  }
+  const data = {
+    app: 'pmo-keyboard-light-playground',
+    kind: 'custom-slot',
+    layout: S.layoutKey,
+    slot: ED.slot + 1,
+    exportedAt: new Date().toISOString(),
+    colors: colors,
+    keys: G.keys.map(function(k){
+      const c = edGet(k.li);
+      return { name: k.name, lightIndex: k.li, color: edHex(c[0], c[1], c[2]) };
+    })
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pmo-custom' + (ED.slot + 1) + '.json';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  edMsg(L('已导出 pmo-custom' + (ED.slot + 1) + '.json', 'Exported pmo-custom' + (ED.slot + 1) + '.json'));
+}
+
+function edImportFile(file){
+  const fr = new FileReader();
+  fr.onload = function(){
+    let j = null;
+    try { j = JSON.parse(fr.result); } catch (e){
+      edMsg(L('不是合法 JSON', 'Not valid JSON')); return;
+    }
+    edSnap();
+    let n = 0;
+    // 本页导出的格式
+    if (Array.isArray(j.colors)){
+      for (let i = 0; i < 128; i++){
+        const c = edParse(j.colors[i]);
+        if (c){ edPut(i, c); n++; }
+      }
+    }
+    // 驱动导出的 rdr-profile-*.json
+    if (Array.isArray(j.keyItemColor)){
+      for (const e2 of j.keyItemColor){
+        const c = edParse(e2.color);
+        if (c && typeof e2.lightIndex === 'number'){ edPut(e2.lightIndex, c); n++; }
+      }
+    }
+    if (!n){
+      ED.undo.pop();
+      edMsg(L('文件里没有可识别的颜色', 'No usable colours in that file'));
+      return;
+    }
+    if (typeof j.layout === 'string' && LAYOUTS[j.layout] && j.layout !== S.layoutKey){
+      edMsg(L('注意：文件来自 ' + j.layout + '，当前是 ' + S.layoutKey, 'Note: file is for ' + j.layout + ', current ' + S.layoutKey));
+    }
+    edAfter();
+    edMsg(L('已导入 ' + n + ' 个灯位', 'Imported ' + n + ' LED positions'));
+  };
+  fr.readAsText(file);
+}
+
+// ---------- 开关 / 面板 ----------
+function edResetBuf(){
+  ED.buf = new Uint8Array(384);
+  ED.sel.clear();
+  ED.undo.length = 0; ED.redo.length = 0;
+  ED.hover = -1; ED.dirty = false;
+}
+
+function edRelabel(){
+  const bar = $('edSlots');
+  if (bar){
+    bar.innerHTML = '';
+    for (let i = 0; i < 5; i++){
+      const b = document.createElement('button');
+      b.textContent = String(i + 1);
+      b.style.minWidth = '26px';
+      b.title = L('自定义灯光 ' + (i + 1) + '（写 0x' + CMD_SLOT[i].toString(16) + ' / 读 0x'
+        + CMD_SLOT_RD[i].toString(16) + '）', 'Custom ' + (i + 1) + ' (write 0x'
+        + CMD_SLOT[i].toString(16) + ' / read 0x' + CMD_SLOT_RD[i].toString(16) + ')');
+      if (i === ED.slot) b.classList.add('on');
+      b.onclick = function(){
+        ED.slot = i;
+        edRelabel();
+        edMsg(L('当前槽：自定义' + (i + 1), 'Slot: Custom ' + (i + 1)));
+      };
+      bar.appendChild(b);
+    }
+  }
+  const st = $('edSlotState');
+  if (st){
+    const conn = S.dev ? L('已连接', 'connected') : L('未连接', 'not connected');
+    const arm = S.dev ? (S.armed ? L('通道已开', 'channel armed') : L('通道未开', 'channel off'))
+                      : L('仅本页', 'page only');
+    st.textContent = L('槽 ' + (ED.slot + 1) + ' · ' + conn + ' · ' + arm,
+                       'slot ' + (ED.slot + 1) + ' · ' + conn + ' · ' + arm);
+  }
+  if (ED.plang !== LANG) edBuildPresets();
+}
+
+function edOpen(){
+  if (!S.G) setLayout('WAVE75');
+  if (!ED.buf.some(function(v){ return v > 0; })) ED.buf = new Uint8Array(384);
+  ED.open = true;
+  ED.sel.clear();
+  ED.undo.length = 0; ED.redo.length = 0;
+  $('edMask').classList.add('on');
+  edRelabel();
+  edDraw();
+  setTimeout(edDraw, 60);          // 等覆盖层完成布局，尺寸取准
+  edMsg(L('拖一个框选中一片按键，然后点右侧色块', 'Drag a box over the keys, then click a swatch on the right'));
+  if (S.dev && !S.armed){
+    edMsg(L('通道未开：编辑只在本页。先回主页点「开启灯光通道」才能实时看到', 'Channel off — edits stay on this page. Enable the live channel on the main page to see them on the keyboard'));
+  }
+}
+
+function edClose(){
+  ED.open = false;
+  $('edMask').classList.remove('on');
+  if (S.G){ S.fx = EFFECTS[S.fxIdx].init(S.G, S); }
+  setTimeout(function(){ try { edDraw(); } catch (e){} }, 0);
+}
+
+function edInit(){
+  const cv = $('edCv');
+  if (cv && cv.addEventListener){
+    cv.addEventListener('pointerdown', edDown);
+    cv.addEventListener('pointermove', edMove);
+    cv.addEventListener('pointerup', edUp);
+    cv.addEventListener('pointercancel', edUp);
+    cv.addEventListener('pointerleave', function(){ if (!ED.drag && ED.hover !== -1){ ED.hover = -1; edDraw(); } });
+    cv.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  }
+
+  const pal = $('edPal');
+  if (pal){
+    const base = ['#ff0000','#ff7a00','#ffd400','#8cff00','#00ff4c','#00ffc8','#00d0ff','#0080ff',
+                  '#3a4bff','#8a2bff','#d400ff','#ff00a8','#ff4d6d','#ffffff','#b9b6ad','#5b584f'];
+    base.forEach(function(hex){
+      const b = document.createElement('button');
+      b.style.background = hex;
+      b.title = hex + L('（Shift+点设为末端色）', ' (shift+click = end colour)');
+      b.onclick = function(e){ edSwatchClick(hex, e); };
+      pal.appendChild(b);
+    });
+  }
+
+  if ($('edColor')) $('edColor').oninput = function(){ edSetColor(edParse(this.value) || ED.color, ED.sel.size > 0); };
+  if ($('edColor2')) $('edColor2').oninput = function(){ edSetColor2(edParse(this.value) || ED.color2); };
+  if ($('edHex')) $('edHex').onchange = function(){
+    const c = edParse(this.value);
+    if (c) edSetColor(c, ED.sel.size > 0); else this.value = edHex(ED.color[0], ED.color[1], ED.color[2]);
+  };
+  if ($('edLive')) $('edLive').onchange = function(){ ED.live = this.checked; if (ED.live) edPushLive(true); };
+
+  const on = function(id, fn){ const el = $(id); if (el) el.onclick = fn; };
+  on('edFill', function(){ edFill(ED.color); });
+  on('edBlack', function(){ if (!ED.sel.size){ edMsg(L('先框选', 'Select keys first')); return; } edSnap(); for (const k of edSelKeys()) edPut(k.li, [0, 0, 0]); edAfter(); });
+  on('edGradH', function(){ edGrad('h'); });
+  on('edGradV', function(){ edGrad('v'); });
+  on('edGradR', function(){ edGrad('r'); });
+  on('edGradRH', function(){ edGrad('rh'); });
+  on('edGradRV', function(){ edGrad('rv'); });
+  on('edHueL', function(){ edEachSelected(function(c){ const h2 = edRgb2Hsv(c[0], c[1], c[2]); return hsv(h2[0] - 15 / 360, h2[1], h2[2]); }); });
+  on('edHueR', function(){ edEachSelected(function(c){ const h2 = edRgb2Hsv(c[0], c[1], c[2]); return hsv(h2[0] + 15 / 360, h2[1], h2[2]); }); });
+  on('edDim', function(){ edEachSelected(function(c){ const h2 = edRgb2Hsv(c[0], c[1], c[2]); return hsv(h2[0], h2[1], h2[2] * 0.82); }); });
+  on('edLite', function(){ edEachSelected(function(c){ const h2 = edRgb2Hsv(c[0], c[1], c[2]); return hsv(h2[0], h2[1], Math.min(1, h2[2] * 1.22)); }); });
+  on('edInvert', function(){ edEachSelected(function(c){ return [255 - c[0], 255 - c[1], 255 - c[2]]; }); });
+  on('edRowFix', edRowFix);
+  on('edUndo', edUndo);
+  on('edRedo', edRedo);
+  on('edSelAll', function(){ ED.sel = new Set(edKeys().map(function(k){ return k.li; })); edAfter(); edMsg(L('已全选 ' + ED.sel.size + ' 颗', 'Selected all ' + ED.sel.size)); });
+  on('edSelInv', function(){ const n = new Set(); for (const k of edKeys()) if (!ED.sel.has(k.li)) n.add(k.li); ED.sel = n; edDraw(); edMsg(L('反选后 ' + n.size + ' 颗', 'Inverted to ' + n.size)); });
+  on('edSelNone', function(){ ED.sel.clear(); edDraw(); });
+  on('edSelRow', function(){
+    if (!ED.sel.size){ edMsg(L('先选几颗键', 'Select some keys first')); return; }
+    const rows = new Set(edSelKeys().map(function(k){ return k.r; }));
+    for (const k of edKeys()) if (rows.has(k.r)) ED.sel.add(k.li);
+    edDraw();
+  });
+  on('edSelCol', function(){
+    if (!ED.sel.size){ edMsg(L('先选几颗键', 'Select some keys first')); return; }
+    const cols = new Set(edSelKeys().map(function(k){ return k.c; }));
+    for (const k of edKeys()) if (cols.has(k.c)) ED.sel.add(k.li);
+    edDraw();
+  });
+  on('edPick', function(){
+    ED.tool = ED.tool === 'pick' ? 'box' : 'pick';
+    this.classList.toggle('on', ED.tool === 'pick');
+    edMsg(ED.tool === 'pick' ? L('吸管已开：点键取色', 'Dropper on — click a key') : L('吸管已关', 'Dropper off'));
+  });
+  on('edRead', edReadSlot);
+  on('edWrite', edWriteSlot);
+  on('edClose', edClose);
+  on('edExport', edExport);
+  on('edImport', function(){ const f = $('edFile'); if (f) f.click(); });
+  const file = $('edFile');
+  if (file) file.onchange = function(){ if (this.files && this.files[0]) edImportFile(this.files[0]); this.value = ''; };
+
+  const be = $('btnEditor');
+  if (be) be.onclick = edOpen;
+
+  if (document.addEventListener){
+    document.addEventListener('keydown', function(e){
+      if (!ED.open) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key.toLowerCase() === 'z'){ e.preventDefault(); if (e.shiftKey) edRedo(); else edUndo(); return; }
+      if (ctrl && e.key.toLowerCase() === 'y'){ e.preventDefault(); edRedo(); return; }
+      if (ctrl && e.key.toLowerCase() === 'a'){ e.preventDefault(); ED.sel = new Set(edKeys().map(function(k){ return k.li; })); edDraw(); return; }
+      if (e.key === 'Enter'){ e.preventDefault(); edFill(ED.color); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace'){
+        if (!ED.sel.size) return;
+        e.preventDefault(); edSnap();
+        for (const k of edSelKeys()) edPut(k.li, [0, 0, 0]);
+        edAfter();
+        return;
+      }
+      if (e.key === 'Escape'){
+        e.preventDefault();
+        if (ED.sel.size){ ED.sel.clear(); edDraw(); } else edClose();
+      }
+    });
+  }
+
+  edSetColor(ED.color, false);
+  edSetColor2(ED.color2);
+  edRenderRecent();
+  edRelabel();
+}
+
+edInit();
 
 fillLayoutSelect();
 setLayout('WAVE75');
