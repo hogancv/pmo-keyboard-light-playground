@@ -2574,7 +2574,11 @@ async function edPushLive(force){
   if (!ED.live && !force) return;
   if (!S.dev || !S.armed || ED.pushing) return;
   const now = performance.now();
-  if (!force && now - ED.lastPush < 45) return;
+  if (!force && now - ED.lastPush < 45){
+    // 节流时补一次尾帧，否则快速编辑后停在半路的颜色不会被推到键盘
+    if (!ED.pushTimer) ED.pushTimer = setTimeout(function(){ ED.pushTimer = 0; edPushLive(); }, 50);
+    return;
+  }
   ED.lastPush = now;
   ED.pushing = true;
   try {
@@ -2823,7 +2827,12 @@ function edInit(){
     });
   }
 
-  if ($('edColor')) $('edColor').oninput = function(){ edSetColor(edParse(this.value) || ED.color, ED.sel.size > 0); };
+  // 拖动取色器时 input 会连续触发：只更新色块，松手（change）才真正填充，
+  // 否则撤销栈会被同一个动作刷爆
+  if ($('edColor')){
+    $('edColor').oninput = function(){ edSetColor(edParse(this.value) || ED.color, false); };
+    $('edColor').onchange = function(){ edSetColor(edParse(this.value) || ED.color, ED.sel.size > 0); };
+  }
   if ($('edColor2')) $('edColor2').oninput = function(){ edSetColor2(edParse(this.value) || ED.color2); };
   if ($('edHex')) $('edHex').onchange = function(){
     const c = edParse(this.value);
