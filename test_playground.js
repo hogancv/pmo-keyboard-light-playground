@@ -110,7 +110,8 @@ global.AudioContext = function(){ return { resume(){}, createMediaStreamSource()
 // ---------- 执行 ----------
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 const runner = new AsyncFunction(code + `
-;return { S, armMatrix, testFrame, pushFrame, stopAll, writeSlot, buildGrid, setLayout, readFuncInfo, CMD, attachRx, diag };`);
+;return { S, armMatrix, testFrame, pushFrame, stopAll, writeSlot, buildGrid, setLayout, readFuncInfo, CMD, attachRx, diag,
+  previewChannel, setPreviewMode, FIRMWARE_BRIGHTNESS, FIRMWARE_PREVIEW_SCALE };`);
 
 (async () => {
   let api;
@@ -163,12 +164,25 @@ const runner = new AsyncFunction(code + `
   console.log('   ' + arrowLi + ' 号灯（→）RGB565 = 0x' + beadArrow.toString(16) + '（蓝 0x001F）');
   console.log('   首灯 RGB565 = 0x' + (fw.frames[0].data[0] | (fw.frames[0].data[1] << 8)).toString(16) + '（绿 0x07E0）');
 
+  // 真实预览只缩放显示通道：255→159（160/256），原始帧与 HID 推流数据不变
+  const rawBeforePreview = Array.from(out);
+  api.setPreviewMode(true);
+  const realWhite = api.previewChannel(255), realMid = api.previewChannel(128);
+  api.setPreviewMode(false);
+  const rawWhite = api.previewChannel(255);
+  const previewOk = api.FIRMWARE_BRIGHTNESS === 160 && api.FIRMWARE_PREVIEW_SCALE === 0.625
+    && realWhite === 159 && realMid === 80 && rawWhite === 255
+    && rawBeforePreview.every((v, i) => out[i] === v);
+  console.log('   真实预览 255→' + realWhite + '，128→' + realMid + '；原始 RGB=' + rawWhite
+    + '；原始帧未修改=' + rawBeforePreview.every((v, i) => out[i] === v));
+  api.setPreviewMode(true);
+
   // 停止还原
   await stopAll();
   console.log('   停止后 固件 mode =', fw.fi[2], 'switch =', fw.fi[1], '（应回到 1 / 1）');
 
   const okShape = fw.frames.length === 3 && total === 164 && arrowLi === 81 && escLi === 0
-    && S.G.leds === 82 && (S.G.byName.get('A') || {}).li === 47;
+    && S.G.leds === 82 && (S.G.byName.get('A') || {}).li === 47 && previewOk;
   console.log(okShape ? '\n✅ 协议链路无异常，帧长与分块正确' : '\n❌ 帧结构不对');
   process.exit(okShape ? 0 : 1);
 })();
